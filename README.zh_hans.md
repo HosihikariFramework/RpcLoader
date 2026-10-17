@@ -83,14 +83,22 @@ export default {
 dotnet run --project host/Hosihikari.PluginProvider.Rpc.Host.csproj -c Release
 ```
 
-需要并列的 `Hosihikari.PluginManager` 与 `Hosihikari.Abstractions` checkout，以及 PATH 上的 Node。
-它证明十件事：Provider 由插件包登记、hello 快照与配置分层、启用/停用/卸载钩子到达、默认异步事件、
-声明同步的事件等到 ack、拒绝启用留在册、拒绝停用中止卸载、允许后真正卸掉、进程死亡走故障卸载并
-通知载体。
+需要并列的 `Hosihikari.PluginManager` 与 `Hosihikari.Abstractions` checkout，以及 PATH 上的 Node 与
+`qjs`。它证明十五件事：Provider 由插件包登记；Node 与 QuickJS 两个绑定各自覆盖 hello 快照与配置分层、
+启用/停用/卸载、默认异步事件、同步 ack、进程死亡故障卸载；另有拒绝启用留在册、拒绝停用中止卸载、
+允许后真正卸掉。
 
 ## 绑定
 
-`bindings/node` 是 Node 的参考绑定与三个测试夹具。其他语言的参考绑定随后补上；协议不变。
+`bindings/node` 与 `bindings/quickjs` 是两份参考绑定，各带测试夹具。QuickJS 这一份需要 PATH 上的
+`qjs`（quickjs-ng），或随包携带；把 `hosihikari.js` 与 `stdin_worker.js` 拷到入口旁边，命令指向它：
+
+```json
+"command": "[\"qjs\", \"./hosihikari.js\", \"./main.js\"]"
+```
+
+它的 `ctx` 通过 `ctx.writeData` 写文件；文件与定时器来自语言运行时（`qjs:std` / `qjs:os`），
+`print` / `console` 走 stderr。其他语言的参考绑定随后补上；协议不变。
 
 ## 许可
 

@@ -19,11 +19,14 @@ Directory.CreateDirectory(configRoot);
 
 StageProviderPackage();
 StagePlugin("Hello", "hello.mjs");
+StageQuickPlugin("QuickHello", "hello.js");
 StagePlugin("Refuse", "refuse.mjs", parented: true);
 StagePlugin("Crash", "crash.mjs", parented: true);
+StageQuickPlugin("QuickCrash", "crash.js", parented: true);
 
 // 运营方的覆盖放包外（ADR-0018）。
 File.WriteAllText(Path.Combine(configRoot, "Hello.conf"), "greeting = \"overridden\"\n");
+File.WriteAllText(Path.Combine(configRoot, "QuickHello.conf"), "greeting = \"quick-overridden\"\n");
 
 var collection = new ServiceCollection();
 collection.AddLogging(builder => builder
@@ -92,6 +95,29 @@ checks.Add(("卸载请求到达，进程退出并回收",
     unloaded.Released && Read(helloData, "unloaded.txt") == "unloaded" && !host.LoadedNames.Contains("Hello"),
     unloaded.Error ?? Read(helloData, "unloaded.txt")));
 
+var quickData = Path.Combine(dataRoot, "QuickHello");
+checks.Add(("QuickJS 绑定：hello 快照、配置分层与启用",
+    host.LoadedNames.Contains("QuickHello")
+        && Read(quickData, "body.txt") == "body:quick-overridden"
+        && Read(quickData, "enabled.txt") == "enabled",
+    $"body={Read(quickData, "body.txt")} enabled={Read(quickData, "enabled.txt")}"));
+
+checks.Add(("QuickJS 绑定：默认异步事件到达",
+    Read(quickData, "ping.txt") == "ping:\"from-host\"", Read(quickData, "ping.txt")));
+
+checks.Add(("QuickJS 绑定：同步订阅等到 ack",
+    Read(quickData, "sync.txt") == "sync:\"sync-host\"", Read(quickData, "sync.txt")));
+
+var quickDisabled = host.Disable("QuickHello");
+var quickDisabledText = Read(quickData, "disabled.txt");
+var quickEnabled = host.Enable("QuickHello");
+var quickEnabledText = Read(quickData, "enabled.txt");
+var quickUnloaded = host.Unload("QuickHello");
+checks.Add(("QuickJS 绑定：启停与卸载",
+    quickDisabled && quickDisabledText == "disabled" && quickEnabled && quickEnabledText == "enabled"
+        && quickUnloaded.Released && Read(quickData, "unloaded.txt") == "unloaded",
+    quickUnloaded.Error ?? Read(quickData, "unloaded.txt")));
+
 // 拒绝是结果值，不是异常（ADR-0030）。
 var refuseLoaded = host.Load(Path.Combine(stage, "parented", "Refuse"));
 var refuseEnable = host.Enable("Refuse");
@@ -113,6 +139,13 @@ var crashLoaded = host.Load(Path.Combine(stage, "parented", "Crash"));
 Thread.Sleep(400);
 checks.Add(("进程死亡走故障卸载并通知",
     crashLoaded && !host.LoadedNames.Contains("Crash") && removed.Any(name => name == "Crash"),
+    $"removed=[{string.Join(", ", removed)}]"));
+
+var quickCrashLoaded = host.Load(Path.Combine(stage, "parented", "QuickCrash"));
+Thread.Sleep(500);
+checks.Add(("QuickJS 绑定：进程死亡走故障卸载并通知",
+    quickCrashLoaded && !host.LoadedNames.Contains("QuickCrash")
+        && removed.Any(name => name == "QuickCrash"),
     $"removed=[{string.Join(", ", removed)}]"));
 
 Console.WriteLine();
@@ -195,6 +228,43 @@ void StagePlugin(string name, string entry, bool parented = false)
     File.Copy(
         Path.Combine(repoRoot, "bindings", "node", entry),
         Path.Combine(package, entry));
+}
+
+void StageQuickPlugin(string name, string entry, bool parented = false)
+{
+    var root = parented ? Path.Combine(stage, "parented") : pluginsRoot;
+    var package = Path.Combine(root, name);
+    Directory.CreateDirectory(package);
+
+    File.WriteAllText(Path.Combine(package, "manifest.json"), $$"""
+        {
+          "name": "{{name}}",
+          "entry": "{{entry}}",
+          "type": "hosihikari",
+          "version": "1.0.0",
+          "dependencies": [
+            { "name": "hosihikari" },
+            { "name": "hosihikari-rpc" }
+          ],
+          "extraInfo": {
+            "api": "2",
+            "format_version": "1",
+            "provider": "rpc",
+            "command": "[\"qjs\",\"./hosihikari.js\",\"./{{entry}}\"]"
+          }
+        }
+        """);
+
+    File.Copy(
+        Path.Combine(repoRoot, "bindings", "quickjs", "hosihikari.js"),
+        Path.Combine(package, "hosihikari.js"));
+    File.Copy(
+        Path.Combine(repoRoot, "bindings", "quickjs", "stdin_worker.js"),
+        Path.Combine(package, "stdin_worker.js"));
+    File.Copy(
+        Path.Combine(repoRoot, "bindings", "quickjs", entry),
+        Path.Combine(package, entry));
+    File.WriteAllText(Path.Combine(package, $"{name}.conf"), "greeting = \"quick-package\"\n");
 }
 
 static string ConfigurationName()

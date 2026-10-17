@@ -91,17 +91,27 @@ data directory is read and written directly; timers belong to the language runti
 dotnet run --project host/Hosihikari.PluginProvider.Rpc.Host.csproj -c Release
 ```
 
-It needs sibling `Hosihikari.PluginManager` and `Hosihikari.Abstractions` checkouts, and Node on
-PATH. It proves ten things: the Provider is registered by a plugin package, the hello snapshot
-carries layered configuration, enable/disable/unload hooks arrive, asynchronous events arrive by
-default, a subscription that declares sync waits for the ack, a refused enable stays loaded, a
-refused disable aborts the unload, the plugin unloads once it allows it, and a process that dies
-outside a hook is faulted out and reported to the carrier.
+It needs sibling `Hosihikari.PluginManager` and `Hosihikari.Abstractions` checkouts, and Node and
+`qjs` on PATH. It proves fifteen things: across both the Node and QuickJS bindings, the Provider is
+registered by a plugin package, the hello snapshot carries layered configuration, enable, disable
+and unload hooks arrive, asynchronous events arrive by default, a subscription that declares sync
+waits for the ack, and a process that dies outside a hook is faulted out and reported to the
+carrier; a refused enable stays loaded, a refused disable aborts the unload, and the plugin unloads
+once it allows it.
 
 ## Bindings
 
-`bindings/node` holds the Node reference binding and three test fixtures. Reference bindings for
-other languages follow; the protocol does not change.
+`bindings/node` and `bindings/quickjs` hold the reference bindings, each with test fixtures. The
+QuickJS binding needs `qjs` (quickjs-ng) on PATH or carried in the package; copy `hosihikari.js`
+and `stdin_worker.js` next to the entry and point the command at it:
+
+```json
+"command": "[\"qjs\", \"./hosihikari.js\", \"./main.js\"]"
+```
+
+Its `ctx` writes through `ctx.writeData`; files and timers come from the language runtime
+(`qjs:std` / `qjs:os`), and `print` / `console` go to stderr. Reference bindings for other
+languages follow; the protocol does not change.
 
 ## Licence
 

@@ -37,6 +37,14 @@ jobs:
         with:
           node-version: '24.x'
 
+      # QuickJS 绑定的断言需要一个 qjs。用 quickjs-ng 的发布二进制，不自己编。
+      - name: quickjs
+        run: |
+          curl -sSL -o qjs https://github.com/quickjs-ng/quickjs/releases/download/v0.17.0/qjs-linux-x86_64
+          chmod +x qjs
+          sudo mv qjs /usr/local/bin/qjs
+          qjs --version
+
       - name: 跑断言
         working-directory: provider
         run: dotnet run --project host/Hosihikari.PluginProvider.Rpc.Host.csproj -c Release --nologo
