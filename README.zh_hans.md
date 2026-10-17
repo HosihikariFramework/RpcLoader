@@ -69,6 +69,8 @@ export default {
 - **宿主→插件**：`hosihikari/enable` / `disable` / `unload` / `events/deliver`。
 - **插件→宿主**：`hosihikari/events/publish` / `subscribe` / `unsubscribe` / `log`。
 - **事件**：默认异步（宿主发通知，发布方不等）；订阅声明 `sync: true` 时宿主等 ack，超时即故障。
+- **超时**：等待写锁、写入与等待响应共用同一个截止时间；超时终止子进程以解除管道阻塞。
+  通知与回复的写入限时五秒，订阅变更按收到的顺序处理。
 - **日志**：stdout 只走协议；stderr 是文本日志；结构化级别走 `hosihikari/log`。
 - **卸载**：`unload` 请求 → 关 stdin → 等 5 秒 → 杀进程树；验证器看进程是否退出。
 
@@ -99,6 +101,15 @@ dotnet run --project host/Hosihikari.PluginProvider.Rpc.Host.csproj -c Release
 
 它的 `ctx` 通过 `ctx.writeData` 写文件；文件与定时器来自语言运行时（`qjs:std` / `qjs:os`），
 `print` / `console` 走 stderr。其他语言的参考绑定随后补上；协议不变。
+
+进程监督与订阅顺序回归不需要 Node 或 QuickJS，也可以单独运行：
+
+```
+dotnet run --project test/Hosihikari.PluginProvider.Rpc.Regression.csproj -c Release
+```
+
+此检查直接编译生产连接源码及并列的 Abstractions 源码，覆盖阻塞写入、请求共用截止时间、
+并发释放、通知超时、订阅顺序，以及同步事件处理中的再次发布。CI 同时运行它与绑定断言。
 
 ## 许可
 

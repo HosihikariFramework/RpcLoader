@@ -13,7 +13,7 @@ namespace Hosihikari.PluginProvider.Rpc;
 /// 传输是行分隔的 JSON-RPC 2.0：stdout 只走协议，stderr 是日志文本。
 /// 宿主→插件发请求（hello / enable / disable / unload / events/deliver），
 /// 插件→宿主也发请求（events/publish / subscribe / unsubscribe / log）。
-/// 读线程只负责解析与配对；插件发来的请求丢到线程池处理，避免读线程自己等自己。
+/// 订阅变更按接收顺序处理；发布在线程池处理，避免读线程自己等自己。
 /// </summary>
 internal sealed class RpcConnection : IDisposable
 {
@@ -26,10 +26,10 @@ internal sealed class RpcConnection : IDisposable
     private readonly Process _process;
     private readonly IPluginContext _context;
     private readonly string _name;
-    private readonly StreamWriter _input;
+    private readonly Stream _input;
     private readonly Dictionary<long, TaskCompletionSource<JsonElement>> _pending = [];
     private readonly object _pendingLock = new();
-    private readonly object _writeLock = new();
+    private readonly SemaphoreSlim _writeLock = new(1, 1);
     private readonly Dictionary<string, IDisposable> _subscriptions = new(StringComparer.Ordinal);
     private readonly object _subscriptionLock = new();
     private long _nextId;
@@ -43,8 +43,7 @@ internal sealed class RpcConnection : IDisposable
         _process = process;
         _context = context;
         _name = context.Name;
-        _input = process.StandardInput;
-        _input.AutoFlush = false;
+        _input = process.StandardInput.BaseStream;
 
         new Thread(ReadLoop) { IsBackground = true, Name = $"hosihikari-rpc:{_name}" }.Start();
         new Thread(ErrorLoop) { IsBackground = true, Name = $"hosihikari-rpc-err:{_name}" }.Start();
@@ -156,22 +155,16 @@ internal sealed class RpcConnection : IDisposable
             _pending[id] = completion;
         }
 
+        using var deadline = new CancellationTokenSource(timeout);
+        using var abort = deadline.Token.Register(Abort);
         try
         {
-            Write(new { jsonrpc = "2.0", id, method, @params = parameters });
-            try
-            {
-                if (!completion.Task.Wait(timeout))
-                {
-                    throw new TimeoutException($"{method} 在 {timeout.TotalSeconds:0} 秒内没有响应");
-                }
-            }
-            catch (AggregateException ex)
-            {
-                throw ex.InnerException ?? ex;
-            }
-
-            return completion.Task.GetAwaiter().GetResult();
+            Write(new { jsonrpc = "2.0", id, method, @params = parameters }, deadline.Token);
+            return completion.Task.WaitAsync(deadline.Token).GetAwaiter().GetResult();
+        }
+        catch (Exception ex) when (deadline.IsCancellationRequested)
+        {
+            throw new TimeoutException($"{method} 在 {timeout.TotalSeconds:0} 秒内没有完成", ex);
         }
         finally
         {
@@ -184,16 +177,42 @@ internal sealed class RpcConnection : IDisposable
 
     private void Write(object message)
     {
-        if (_dead)
-        {
-            throw new InvalidOperationException("插件进程已经退出");
-        }
+        using var deadline = new CancellationTokenSource(SyncEventTimeout);
+        using var abort = deadline.Token.Register(Abort);
+        Write(message, deadline.Token);
+    }
 
-        var json = JsonSerializer.Serialize(message);
-        lock (_writeLock)
+    private void Write(object message, CancellationToken cancellation)
+    {
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(message);
+        _writeLock.Wait(cancellation);
+        try
         {
-            _input.WriteLine(json);
-            _input.Flush();
+            if (_dead)
+            {
+                throw new InvalidOperationException("插件进程已经退出");
+            }
+
+            // Cancellation kills a stuck reader as well, so the write itself finishes before releasing the gate.
+            _input.WriteAsync(bytes, cancellation).AsTask().GetAwaiter().GetResult();
+            _input.WriteAsync(new byte[] { (byte)'\n' }, cancellation).AsTask().GetAwaiter().GetResult();
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
+
+    private void Abort()
+    {
+        _dead = true;
+        try
+        {
+            _process.Kill(entireProcessTree: true);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            _context.Logger.LogDebug(ex, "{Name}: 结束插件进程", _name);
         }
     }
 
@@ -254,8 +273,15 @@ internal sealed class RpcConnection : IDisposable
                         ? parsed
                         : (long?)null;
 
-                    // 读线程不能自己去处理：处理里可能再发请求并等响应，一等就把自己等死。
-                    _ = Task.Run(() => HandlePluginRequest(method, parameters, requestId));
+                    // Subscription changes keep wire order; publishing may wait for a reply on this reader.
+                    if (method is "hosihikari/events/subscribe" or "hosihikari/events/unsubscribe")
+                    {
+                        HandlePluginRequest(method, parameters, requestId);
+                    }
+                    else
+                    {
+                        _ = Task.Run(() => HandlePluginRequest(method, parameters, requestId));
+                    }
                 }
             }
         }
@@ -332,27 +358,36 @@ internal sealed class RpcConnection : IDisposable
 
             if (requestId is { } id)
             {
-                Write(new { jsonrpc = "2.0", id, result = (object?)null });
+                Reply(new { jsonrpc = "2.0", id, result = (object?)null });
             }
         }
         catch (Exception ex)
         {
             if (requestId is { } id && !_dead)
             {
-                try
-                {
-                    Write(new { jsonrpc = "2.0", id, error = new { code = -32603, message = ex.Message } });
-                }
-                catch (InvalidOperationException)
-                {
-                    // 进程已经走了。
-                }
+                Reply(new { jsonrpc = "2.0", id, error = new { code = -32603, message = ex.Message } });
             }
             else
             {
                 _context.Logger.LogError(ex, "{Name}: 处理 {Method} 失败", _name, method);
             }
         }
+    }
+
+    private void Reply(object message)
+    {
+        // A full stdin pipe must not stop the reader from completing the host's outstanding requests.
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                Write(message);
+            }
+            catch (Exception ex)
+            {
+                _context.Logger.LogDebug(ex, "{Name}: 回复插件请求失败", _name);
+            }
+        });
     }
 
     private void Publish(JsonElement parameters)
@@ -370,7 +405,7 @@ internal sealed class RpcConnection : IDisposable
         var sync = parameters.TryGetProperty("sync", out var value) && value.ValueKind == JsonValueKind.True;
         lock (_subscriptionLock)
         {
-            if (_subscriptions.ContainsKey(topic))
+            if (_disposing || _dead || _subscriptions.ContainsKey(topic))
             {
                 return;
             }
@@ -522,6 +557,15 @@ internal sealed class RpcConnection : IDisposable
         }
         _disposing = true;
 
+        // Closing a stream with an outstanding write can wait for that write; kill its reader first.
+        if (!_writeLock.Wait(0))
+        {
+            Abort();
+            if (!_writeLock.Wait(ShutdownTimeout))
+            {
+                throw new TimeoutException("插件进程的写入没有结束");
+            }
+        }
         try
         {
             _input.Close();
@@ -530,13 +574,20 @@ internal sealed class RpcConnection : IDisposable
         {
             // 已经关了。
         }
+        finally
+        {
+            _writeLock.Release();
+        }
 
         try
         {
             if (!_process.WaitForExit(ShutdownTimeout))
             {
                 _process.Kill(entireProcessTree: true);
-                _process.WaitForExit();
+                if (!_process.WaitForExit(ShutdownTimeout))
+                {
+                    throw new TimeoutException("插件进程没有结束");
+                }
             }
             _hasExited = true;
         }

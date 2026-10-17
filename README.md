@@ -75,6 +75,9 @@ export default {
 - **Events**: asynchronous by default (the host sends a notification and the publisher does not
   wait); a subscription can declare `sync: true`, in which case the host waits for the ack and
   treats a timeout as a fault.
+- **Deadlines**: waiting for the write gate, writing, and waiting for the response share one timeout.
+  A timeout terminates the child to release blocked pipe writes; notifications and replies have a
+  five-second write timeout. Subscription changes follow their receive order.
 - **Logging**: stdout carries protocol only; stderr is text logging; structured levels go through
   `hosihikari/log`.
 - **Unload**: send `unload`, close stdin, wait 5 seconds, then kill the process tree. The release
@@ -113,6 +116,16 @@ and `stdin_worker.js` next to the entry and point the command at it:
 Its `ctx` writes through `ctx.writeData`; files and timers come from the language runtime
 (`qjs:std` / `qjs:os`), and `print` / `console` go to stderr. Reference bindings for other
 languages follow; the protocol does not change.
+
+The process supervision and subscription ordering regressions can also run without Node or QuickJS:
+
+```
+dotnet run --project test/Hosihikari.PluginProvider.Rpc.Regression.csproj -c Release
+```
+
+This check links the production connection source and sibling Abstractions source. It covers blocked
+writes, shared request deadlines, concurrent disposal, notification timeouts, subscription ordering,
+and reentrant synchronous event publication. CI runs it alongside the binding assertions.
 
 ## Licence
 
