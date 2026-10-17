@@ -1,0 +1,42 @@
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  assertions:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 本仓
+        uses: actions/checkout@v4
+        with:
+          path: provider
+
+      # 验证宿主借核心的 PluginManagerHost。它按 ../.. 找这个目录，所以位置要照着摆。
+      - name: 核心
+        uses: actions/checkout@v4
+        with:
+          repository: HosihikariFramework/PluginManagement
+          path: Hosihikari.PluginManager
+
+      # 契约与核心一起改：并列摆放才能编到新契约。
+      - name: 契约
+        uses: actions/checkout@v4
+        with:
+          repository: HosihikariFramework/Abstractions
+          path: Hosihikari.Abstractions
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # 断言里有真正的子进程，运行时由 setup-node 提供。
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+
+      - name: 跑断言
+        working-directory: provider
+        run: dotnet run --project host/Hosihikari.PluginProvider.Rpc.Host.csproj -c Release --nologo
