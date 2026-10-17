@@ -92,12 +92,12 @@ dotnet run --project host/Hosihikari.PluginProvider.Rpc.Host.csproj -c Release
 ```
 
 It needs sibling `Hosihikari.PluginManager` and `Hosihikari.Abstractions` checkouts, and Node and
-`qjs` on PATH. It proves fifteen things: across both the Node and QuickJS bindings, the Provider is
+`qjs` on PATH. It proves sixteen things: across both the Node and QuickJS bindings, the Provider is
 registered by a plugin package, the hello snapshot carries layered configuration, enable, disable
 and unload hooks arrive, asynchronous events arrive by default, a subscription that declares sync
 waits for the ack, and a process that dies outside a hook is faulted out and reported to the
-carrier; a refused enable stays loaded, a refused disable aborts the unload, and the plugin unloads
-once it allows it.
+carrier; the QuickJS binding also runs timers and publishes back to the host; a refused enable
+stays loaded, a refused disable aborts the unload, and the plugin unloads once it allows it.
 
 ## Bindings
 

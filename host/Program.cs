@@ -108,6 +108,13 @@ checks.Add(("QuickJS 绑定：默认异步事件到达",
 checks.Add(("QuickJS 绑定：同步订阅等到 ack",
     Read(quickData, "sync.txt") == "sync:\"sync-host\"", Read(quickData, "sync.txt")));
 
+// 让 500/700 ms 的自发布定时器跑完：既验定时器，也验插件→宿主的 publish。
+Thread.Sleep(500);
+checks.Add(("QuickJS 绑定：定时器与自发布",
+    Read(quickData, "self.txt") == "self:\"quick-publish\""
+        && Read(quickData, "syncself.txt") == "syncself:\"quick-sync\"",
+    $"self={Read(quickData, "self.txt")} syncself={Read(quickData, "syncself.txt")}"));
+
 var quickDisabled = host.Disable("QuickHello");
 var quickDisabledText = Read(quickData, "disabled.txt");
 var quickEnabled = host.Enable("QuickHello");
@@ -142,11 +149,12 @@ checks.Add(("进程死亡走故障卸载并通知",
     $"removed=[{string.Join(", ", removed)}]"));
 
 var quickCrashLoaded = host.Load(Path.Combine(stage, "parented", "QuickCrash"));
-Thread.Sleep(500);
+var quickCrashEnable = host.Enable("QuickCrash");
+Thread.Sleep(300);
 checks.Add(("QuickJS 绑定：进程死亡走故障卸载并通知",
-    quickCrashLoaded && !host.LoadedNames.Contains("QuickCrash")
+    quickCrashLoaded && !quickCrashEnable && !host.LoadedNames.Contains("QuickCrash")
         && removed.Any(name => name == "QuickCrash"),
-    $"removed=[{string.Join(", ", removed)}]"));
+    $"loaded={quickCrashLoaded} enable={quickCrashEnable} removed=[{string.Join(", ", removed)}]"));
 
 Console.WriteLine();
 Console.WriteLine("=== 断言 ===");
