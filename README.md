@@ -28,7 +28,7 @@ plugins/Hello/
         "api": "2",
         "format_version": "1",
         "provider": "rpc",
-        "command": ["node", "./hosihikari.mjs", "./main.mjs"]
+        "command": "[\"node\", \"./hosihikari.mjs\", \"./main.mjs\"]"
       }
     }
   hosihikari.mjs     ← the binding, copied from bindings/node in this repository
@@ -36,9 +36,10 @@ plugins/Hello/
   Hello.conf
 ```
 
-`extraInfo.command` is a non-empty array of strings: the first item is the executable, the rest go
-into the argument list one by one. There is no shell; the working directory is the package
-directory. The runtime executable is supplied by the operator (PATH or an absolute path).
+`extraInfo.command` is a non-empty JSON array encoded as a string — the parent's manifest parser
+requires `extraInfo` values to be strings. The Provider decodes it and passes the items into the
+argument list one by one; there is no shell, and the working directory is the package directory. The
+runtime executable is supplied by the operator (PATH or an absolute path).
 
 ## How a plugin is written
 

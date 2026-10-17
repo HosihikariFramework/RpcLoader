@@ -184,7 +184,7 @@ void StagePlugin(string name, string entry, bool parented = false)
             "api": "2",
             "format_version": "1",
             "provider": "rpc",
-            "command": ["node", "./hosihikari.mjs", "./{{entry}}"]
+            "command": "[\"node\",\"./hosihikari.mjs\",\"./{{entry}}\"]"
           }
         }
         """);
