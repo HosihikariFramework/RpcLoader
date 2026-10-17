@@ -90,7 +90,7 @@ dotnet run --project host/Hosihikari.PluginProvider.Rpc.Host.csproj -c Release
 
 ## 绑定
 
-`bindings/node` 是 Node 的参考绑定与三个测试夹具。Python / Lua 的参考绑定随后补上；协议不变。
+`bindings/node` 是 Node 的参考绑定与三个测试夹具。其他语言的参考绑定随后补上；协议不变。
 
 ## 许可
 

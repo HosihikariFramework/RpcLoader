@@ -100,8 +100,8 @@ outside a hook is faulted out and reported to the carrier.
 
 ## Bindings
 
-`bindings/node` holds the Node reference binding and three test fixtures. Python and Lua reference
-bindings follow; the protocol does not change.
+`bindings/node` holds the Node reference binding and three test fixtures. Reference bindings for
+other languages follow; the protocol does not change.
 
 ## Licence
 
