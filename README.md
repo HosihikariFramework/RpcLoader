@@ -39,7 +39,8 @@ plugins/Hello/
 `extraInfo.command` is a non-empty JSON array encoded as a string — the parent's manifest parser
 requires `extraInfo` values to be strings. The Provider decodes it and passes the items into the
 argument list one by one; there is no shell, and the working directory is the package directory. The
-runtime executable is supplied by the operator (PATH or an absolute path).
+runtime executable is supplied by the operator (PATH or an absolute path). Under Endstone, the CLI
+sets the child's PATH to Python's `sys.path`, so name the runtime by absolute path there.
 
 ## How a plugin is written
 

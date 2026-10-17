@@ -36,7 +36,7 @@ plugins/Hello/
 
 `extraInfo.command` 是**编码成字符串的 JSON 数组**——父级的清单解析要求 `extraInfo` 的值是字符串。
 Provider 解码后把各项逐个放进参数表；不经 shell，工作目录是包目录。运行时可执行文件由运维提供
-（PATH 或绝对路径）。
+（PATH 或绝对路径）。在 Endstone 下，CLI 会把子进程的 PATH 换成 Python 的 `sys.path`，运行时要写绝对路径。
 
 ## 插件怎么写
 
