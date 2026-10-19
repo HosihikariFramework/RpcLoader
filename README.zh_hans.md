@@ -2,8 +2,10 @@
 
 [English](README.md) | [简体中文](README.zh_hans.md)
 
-星光框架的**进程外插件 Provider**（ADR-0031）。脚本插件以子进程运行，协议是行分隔的 JSON-RPC 2.0
-over stdio；Provider 不认识语言，只认清单里的命令。卸载就是让进程真正退出。
+> **例外一等成员。** RpcProvider 是官方 AOT/ALC/CLR Provider 集之外的唯一一等成员（ADR-0037）；插件无法在 CLR 上运行时才用它。
+
+星光框架的**例外一等跨进程桥**。插件以子进程运行，协议是行分隔的 JSON-RPC 2.0
+over stdio；它只认清单里的命令与协议。卸载就是让进程真正退出。
 
 **它自己也是一个插件包**：`hosihikari-rpc`。装载时在 `OnLoad` 里把自己登记给框架，此后
 `provider: "rpc"` 的包才会被它接管 —— 所以进程外插件要在清单里声明依赖它。
@@ -35,8 +37,8 @@ plugins/Hello/
 ```
 
 `extraInfo.command` 是**编码成字符串的 JSON 数组**——父级的清单解析要求 `extraInfo` 的值是字符串。
-Provider 解码后把各项逐个放进参数表；不经 shell，工作目录是包目录。运行时可执行文件由运维提供
-（PATH 或绝对路径）。在 Endstone 下，CLI 会把子进程的 PATH 换成 Python 的 `sys.path`，运行时要写绝对路径。
+Provider 解码后把各项逐个放进参数表；不经 shell，工作目录是包目录。子进程的可执行文件由运维提供
+（PATH 或绝对路径）。在 Endstone 下，CLI 会把子进程的 PATH 换成 Python 的 `sys.path`，可执行文件要写绝对路径。
 
 ## 插件怎么写
 
@@ -76,7 +78,7 @@ export default {
 
 ## 能力面
 
-语言标准库 + 宿主服务。没有任意 .NET 互操作；类型键的服务注册表不跨进程（没有共享类型）。
+子进程自带的标准库 + 宿主服务。没有任意 .NET 互操作；类型键的服务注册表不跨进程（没有共享类型）。
 数据目录由插件直接读写；定时器用语言自己的。
 
 ## 跑一遍
@@ -103,7 +105,7 @@ QuickJS 这一份需要 PATH 上的 `qjs`（quickjs-ng），或随包携带；�
 "command": "[\"qjs\", \"./hosihikari.js\", \"./main.js\"]"
 ```
 
-它的 `ctx` 通过 `ctx.writeData` 写文件；文件与定时器来自语言运行时（`qjs:std` / `qjs:os`），
+它的 `ctx` 通过 `ctx.writeData` 写文件；文件与定时器来自 QuickJS 自带标准库（`qjs:std` / `qjs:os`），
 `print` / `console` 走 stderr。
 
 Python 这一份把 `hosihikari.py` 拷到入口旁边；插件定义模块级的 `on_load(ctx)` /

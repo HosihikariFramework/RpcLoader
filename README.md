@@ -2,13 +2,15 @@
 
 [English](README.md) | [简体中文](README.zh_hans.md)
 
-The **out-of-process plugin Provider** of the Hosihikari framework (ADR-0031). Script plugins run
-as child processes and speak newline-delimited JSON-RPC 2.0 over stdio; the Provider knows no
-language and only reads the command in the manifest. Unload means the process really exits.
+> **First-class exception.** RpcProvider is the one first-class member outside the official AOT/ALC/CLR provider set (ADR-0037). Use it when a plugin cannot run on the CLR.
+
+The **first-class cross-process bridge** of the Hosihikari framework. Plugins run as child processes
+and speak newline-delimited JSON-RPC 2.0 over stdio; the bridge reads only the command in the
+manifest and the protocol. Unload means the process really exits.
 
 **It is a plugin package itself**, named `hosihikari-rpc`. When it loads, it registers itself with
 the framework from `OnLoad`; packages with `provider: "rpc"` are only handled after that — which is
-why out-of-process plugins declare a dependency on it.
+why bridge plugins declare a dependency on it.
 
 ## What a plugin package looks like
 
@@ -85,9 +87,9 @@ export default {
 
 ## Capability surface
 
-The language's standard library plus host services. There is no arbitrary .NET interop; the
+The child process's standard library plus host services. There is no arbitrary .NET interop; the
 type-keyed service registry does not cross the process boundary (there are no shared types). The
-data directory is read and written directly; timers belong to the language runtime.
+data directory is read and written directly; timers belong to the child process.
 
 ## Running it
 
@@ -115,8 +117,8 @@ The QuickJS binding needs `qjs` (quickjs-ng) on PATH or carried in the package; 
 "command": "[\"qjs\", \"./hosihikari.js\", \"./main.js\"]"
 ```
 
-Its `ctx` writes through `ctx.writeData`; files and timers come from the language runtime
-(`qjs:std` / `qjs:os`), and `print` / `console` go to stderr.
+Its `ctx` writes through `ctx.writeData`; files and timers come from the child process's standard
+library (`qjs:std` / `qjs:os`), and `print` / `console` go to stderr.
 
 The Python binding copies `hosihikari.py` next to the entry; the plugin defines module-level
 `on_load(ctx)` / `on_enable(ctx)` / `on_disable(ctx)` / `on_unload(ctx)`:
