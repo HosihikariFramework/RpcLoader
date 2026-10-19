@@ -11,6 +11,8 @@ var python = FindPython();
 var java = FindTool("java", "-version");
 var javac = FindTool("javac", "-version");
 var kotlinc = FindTool("kotlinc", "-version");
+var requireJava = Environment.GetEnvironmentVariable("HOSIHIKARI_REQUIRE_JAVA") == "1";
+var requireKotlin = Environment.GetEnvironmentVariable("HOSIHIKARI_REQUIRE_KOTLIN") == "1";
 var stage = Path.Combine(Path.GetTempPath(), "hosihikari-rpc-spike");
 if (Directory.Exists(stage))
 {
@@ -31,14 +33,16 @@ if (python is not null)
     StagePythonPlugin("PyRefuse", "refuse.py", parented: true);
     StagePythonPlugin("PyCrash", "crash.py", parented: true);
 }
-var javaStaged = java is not null && javac is not null
+var javaTools = java is not null && javac is not null;
+var javaStaged = javaTools
     && StageJavaPlugin("JavaHello", "hello.HelloPlugin", "hello/HelloPlugin.java");
 if (javaStaged)
 {
     StageJavaPlugin("JavaRefuse", "refuse.RefusePlugin", "refuse/RefusePlugin.java", parented: true);
     StageJavaPlugin("JavaCrash", "crash.CrashPlugin", "crash/CrashPlugin.java", parented: true);
 }
-var kotlinStaged = java is not null && javac is not null && kotlinc is not null
+var kotlinTools = javaTools && kotlinc is not null;
+var kotlinStaged = kotlinTools
     && StageKotlinPlugin("KotlinHello", "hello.HelloPlugin", "hello/HelloPlugin.kt");
 StagePlugin("Refuse", "refuse.mjs", parented: true);
 StagePlugin("Crash", "crash.mjs", parented: true);
@@ -218,9 +222,13 @@ else
         $"removed=[{string.Join(", ", removed)}]"));
 }
 
-if (!javaStaged)
+if (!javaTools)
 {
-    checks.Add(("Java 绑定", true, "（跳过：没有 JDK 或编译失败）"));
+    checks.Add(("Java 绑定", !requireJava, requireJava ? "（需要 JDK，但未找到）" : "（跳过：没有 JDK）"));
+}
+else if (!javaStaged)
+{
+    checks.Add(("Java 绑定", false, "（JDK 在场，但编译/暂存失败；见上方 [Java] 日志）"));
 }
 else
 {
@@ -283,9 +291,13 @@ else
         $"removed=[{string.Join(", ", removed)}]"));
 }
 
-if (!kotlinStaged)
+if (!kotlinTools)
 {
-    checks.Add(("Kotlin 绑定", true, "（跳过：没有 Kotlin 编译器）"));
+    checks.Add(("Kotlin 绑定", !requireKotlin, requireKotlin ? "（需要 Kotlin 编译器，但未找到）" : "（跳过：没有 Kotlin 编译器）"));
+}
+else if (!kotlinStaged)
+{
+    checks.Add(("Kotlin 绑定", false, "（Kotlin 编译器在场，但编译/暂存失败；见上方 [Kotlin] 日志）"));
 }
 else
 {

@@ -3,8 +3,10 @@
 
     The package is a plugin package itself: provider DLL, private dependencies,
     manifest and the language bindings authors copy into their own packages.
-    Shared-layer assemblies come from the Shim package and must not be copied here
-    (ADR-0019 / 0026 / 0036).
+    Shared-layer assemblies are excluded by the core packager from its canonical
+    list (ADR-0019 / 0026 / 0036).
+
+    Requires a sibling Hosihikari.PluginManager checkout, or HOSIHIKARI_PLUGINMANAGER.
 
     Usage: pwsh ./pack.ps1 -Version 0.1.0 -OutputRoot artifacts
 #>
@@ -25,39 +27,37 @@ $output = Join-Path $here 'src/bin/Release/net10.0'
 $root = if ([System.IO.Path]::IsPathRooted($OutputRoot)) { $OutputRoot } else { Join-Path $here $OutputRoot }
 $package = Join-Path $root $name
 if (Test-Path $package) { Remove-Item $package -Recurse -Force }
-New-Item -ItemType Directory -Path $package -Force | Out-Null
+New-Item -ItemType Directory -Path $root -Force | Out-Null
 
-$shared = @(
-    'Hosihikari.Abstractions.dll',
-    'Hosihikari.Abstractions.pdb',
-    'Hosihikari.Abstractions.xml',
-    'Microsoft.Extensions.Configuration.Abstractions.dll',
-    'Microsoft.Extensions.DependencyInjection.Abstractions.dll',
-    'Microsoft.Extensions.Logging.Abstractions.dll',
-    'Microsoft.Extensions.Primitives.dll'
-)
+$core = if ($env:HOSIHIKARI_PLUGINMANAGER) {
+    $env:HOSIHIKARI_PLUGINMANAGER
+} else {
+    Join-Path (Split-Path $here -Parent) 'Hosihikari.PluginManager'
+}
+$packTool = Join-Path $core 'tools/Pack/Hosihikari.Plugin.Pack.csproj'
+if (-not (Test-Path $packTool)) {
+    throw "找不到核心打包器：$packTool。请并列检出 Hosihikari.PluginManager，或设置 HOSIHIKARI_PLUGINMANAGER。"
+}
 
-foreach ($file in Get-ChildItem $output -Recurse -File) {
-    if ($shared -contains $file.Name) { continue }
-    $relative = $file.FullName.Substring($output.Length).TrimStart([char[]]@('\', '/'))
-    $target = Join-Path $package $relative
-    New-Item -ItemType Directory -Path (Split-Path $target -Parent) -Force | Out-Null
-    Copy-Item $file.FullName $target -Force
+$manifest = Join-Path ([System.IO.Path]::GetTempPath()) "hosihikari-$name-$Version-manifest.json"
+try {
+    [ordered]@{
+        name         = $name
+        entry        = $entry
+        type         = 'hosihikari'
+        version      = $Version
+        dependencies = @(@{ name = 'hosihikari' })
+        extraInfo    = [ordered]@{ api = '2'; format_version = '1'; provider = 'assembly' }
+    } | ConvertTo-Json -Depth 6 | Set-Content $manifest -Encoding UTF8
+
+    & dotnet run --project $packTool -c Release -- pack-provider $output $manifest $root
+    if ($LASTEXITCODE -ne 0) { throw 'the core packager failed' }
+} finally {
+    Remove-Item $manifest -Force -ErrorAction SilentlyContinue
 }
 
 Copy-Item (Join-Path $here 'bindings') (Join-Path $package 'bindings') -Recurse
 
-$manifest = [ordered]@{
-    name         = $name
-    entry        = $entry
-    type         = 'hosihikari'
-    version      = $Version
-    dependencies = @(@{ name = 'hosihikari' })
-    extraInfo    = [ordered]@{ api = '2'; format_version = '1'; provider = 'assembly' }
-}
-$manifest | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $package 'manifest.json') -Encoding UTF8
-
-New-Item -ItemType Directory -Path $root -Force | Out-Null
 $zip = Join-Path $root "$name-$Version.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path $package -DestinationPath $zip

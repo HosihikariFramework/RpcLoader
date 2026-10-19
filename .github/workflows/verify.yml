@@ -66,6 +66,9 @@ jobs:
 
       - name: 跑断言
         working-directory: provider
+        env:
+          HOSIHIKARI_REQUIRE_JAVA: '1'
+          HOSIHIKARI_REQUIRE_KOTLIN: '1'
         run: dotnet run --project host/Hosihikari.PluginProvider.Rpc.Host.csproj -c Release --nologo
 
       - name: 进程监督与协议顺序回归
