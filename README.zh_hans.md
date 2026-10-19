@@ -86,14 +86,15 @@ dotnet run --project host/Hosihikari.PluginProvider.Rpc.Host.csproj -c Release
 ```
 
 需要并列的 `Hosihikari.PluginManager`、`Hosihikari.Abstractions` 与 McMaster 的 fork checkout，以及 PATH 上的
-Node、`qjs` 与 Python（`python3`；Windows 上是 `python` 或 `py -3`）。它覆盖：Provider 由插件包登记；
-Node、QuickJS 与 Python 三个绑定各自验证 hello 快照与配置分层、启用/停用/卸载、默认异步事件、同步 ack、
-进程死亡故障卸载；QuickJS 与 Python 还覆盖定时器与插件→宿主发布；另有拒绝启用留在册、拒绝停用中止卸载、
-允许后真正卸掉。
+Node、`qjs`、Python（`python3`；Windows 上是 `python` 或 `py -3`）、JDK 21 与 `kotlinc`。它覆盖：
+Provider 由插件包登记；Node、QuickJS、Python、Java 与 Kotlin 绑定各自验证 hello 快照与配置分层、
+启用/停用/卸载、默认异步事件、同步 ack、定时器与插件→宿主发布；Java 还覆盖拒绝启用/停用与进程死亡
+故障卸载，Kotlin 验证同一份 JVM 绑定在 Kotlin 下的互操作。
 
 ## 绑定
 
-`bindings/node`、`bindings/quickjs` 与 `bindings/python` 是三份参考绑定，各带测试夹具。
+`bindings/node`、`bindings/quickjs`、`bindings/python` 与 `bindings/java` 是参考绑定，各带测试夹具；
+`bindings/kotlin` 是 JVM 绑定的 Kotlin 夹具。
 
 QuickJS 这一份需要 PATH 上的 `qjs`（quickjs-ng），或随包携带；把 `hosihikari.js` 与 `stdin_worker.js`
 拷到入口旁边，命令指向它：
@@ -115,9 +116,30 @@ Python 这一份把 `hosihikari.py` 拷到入口旁边；插件定义模块级�
 `ctx` 提供 `name`、`data_directory`、`package_directory`、`config(key)`、`config_object`、
 `log_info/log_warn/log_error`、`write_data(file, text)`、`publish(topic, json)`、
 `subscribe(topic, fn, sync=False)`、`run_later(seconds, fn)`、`run_every(seconds, fn)`。
-`print` 走 stderr，stdout 只留给协议；其余语言按需补，协议不变。
+`print` 走 stderr，stdout 只留给协议。
 
-进程监督与订阅顺序回归不需要 Node、QuickJS 或 Python，也可以单独运行：
+JVM 绑定在 `bindings/java/hosihikari`，Java 与 Kotlin 插件共用同一份。插件实现
+`hosihikari.Plugin`（`onLoad` / `onEnable` / `onDisable` / `onUnload`），钩子返回
+`HookResult.allow()` / `HookResult.refuse(reason)`；`Context` 提供 `name()`、`dataDirectory()`、
+`packageDirectory()`、`config(key)`、`configObject()`、`logInfo/logWarn/logError`、
+`writeData(file, text)`、`publish(topic, json)`、`subscribe(topic, Consumer<String>[, sync])`、
+`runLater(millis, Runnable)`、`runEvery(millis, Runnable)`。Java 插件与绑定一起编译：
+
+```json
+"command": "[\"java\", \"-cp\", \"./classes\", \"hosihikari.Binding\", \"hello.HelloPlugin\"]"
+```
+
+Kotlin 插件实现同一接口，编译时把 Java 绑定类放进 classpath，并把 Kotlin 标准库打进 jar；
+运行时 classpath 分隔符在 Unix 是 `:`、Windows 是 `;`：
+
+```json
+"command": "[\"java\", \"-cp\", \"./plugin.jar:./classes\", \"hosihikari.Binding\", \"hello.HelloPlugin\"]"
+```
+
+JVM 绑定需要 JDK 21；Kotlin 插件另需构建期的 `kotlinc`，运行时只要有 `java` 与打好的 jar。
+其余语言按需补，协议不变。
+
+进程监督与订阅顺序回归不需要 Node、QuickJS、Python、JDK 或 Kotlin，也可以单独运行：
 
 ```
 dotnet run --project test/Hosihikari.PluginProvider.Rpc.Regression.csproj -c Release

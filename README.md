@@ -96,17 +96,17 @@ dotnet run --project host/Hosihikari.PluginProvider.Rpc.Host.csproj -c Release
 ```
 
 It needs sibling `Hosihikari.PluginManager`, `Hosihikari.Abstractions` and McMaster fork checkouts,
-and Node, `qjs` and Python (`python3`; on Windows `python` or `py -3`) on PATH. It covers: the
-Provider is registered by a plugin package; the Node, QuickJS and Python bindings each verify the
-hello snapshot with layered configuration, enable/disable/unload hooks, asynchronous events by
-default, the sync ack, and faulting out a process that dies outside a hook; QuickJS and Python also
-run timers and publish back to the host; a refused enable stays loaded, a refused disable aborts
-the unload, and the plugin unloads once it allows it.
+and Node, `qjs`, Python (`python3`; on Windows `python` or `py -3`), JDK 21 and `kotlinc` on PATH.
+It covers: the Provider is registered by a plugin package; the Node, QuickJS, Python, Java and
+Kotlin bindings each verify the hello snapshot with layered configuration, enable/disable/unload
+hooks, asynchronous events by default, the sync ack, timers and publishing back to the host; Java
+also covers refused enable/disable and faulting out a process that dies outside a hook, and Kotlin
+verifies the same JVM binding from Kotlin.
 
 ## Bindings
 
-`bindings/node`, `bindings/quickjs` and `bindings/python` hold the reference bindings, each with
-test fixtures.
+`bindings/node`, `bindings/quickjs`, `bindings/python` and `bindings/java` hold the reference
+bindings, each with test fixtures; `bindings/kotlin` holds the Kotlin fixture for the JVM binding.
 
 The QuickJS binding needs `qjs` (quickjs-ng) on PATH or carried in the package; copy
 `hosihikari.js` and `stdin_worker.js` next to the entry and point the command at it:
@@ -128,11 +128,34 @@ The Python binding copies `hosihikari.py` next to the entry; the plugin defines 
 `ctx` provides `name`, `data_directory`, `package_directory`, `config(key)`, `config_object`,
 `log_info/log_warn/log_error`, `write_data(file, text)`, `publish(topic, json)`,
 `subscribe(topic, fn, sync=False)`, `run_later(seconds, fn)` and `run_every(seconds, fn)`.
-`print` goes to stderr; stdout is protocol only. Other languages follow on demand; the protocol
+`print` goes to stderr; stdout is protocol only.
+
+The JVM binding lives in `bindings/java/hosihikari` and serves Java and Kotlin plugins. A plugin
+implements `hosihikari.Plugin` (`onLoad` / `onEnable` / `onDisable` / `onUnload`); hooks return
+`HookResult.allow()` / `HookResult.refuse(reason)`. `Context` provides `name()`, `dataDirectory()`,
+`packageDirectory()`, `config(key)`, `configObject()`, `logInfo/logWarn/logError`,
+`writeData(file, text)`, `publish(topic, json)`, `subscribe(topic, Consumer<String>[, sync])`,
+`runLater(millis, Runnable)` and `runEvery(millis, Runnable)`. Compile the Java plugin together
+with the binding:
+
+```json
+"command": "[\"java\", \"-cp\", \"./classes\", \"hosihikari.Binding\", \"hello.HelloPlugin\"]"
+```
+
+A Kotlin plugin implements the same interface; compile it against the binding classes and bundle
+the Kotlin stdlib (`-include-runtime`). The runtime classpath separator is `:` on Unix and `;` on
+Windows:
+
+```json
+"command": "[\"java\", \"-cp\", \"./plugin.jar:./classes\", \"hosihikari.Binding\", \"hello.HelloPlugin\"]"
+```
+
+The JVM binding needs JDK 21; Kotlin plugins additionally need `kotlinc` at build time, while the
+runtime only needs `java` and the packaged jar. Other languages follow on demand; the protocol
 does not change.
 
-The process supervision and subscription ordering regressions can also run without Node, QuickJS
-or Python:
+The process supervision and subscription ordering regressions can also run without Node, QuickJS,
+Python, a JDK or Kotlin:
 
 ```
 dotnet run --project test/Hosihikari.PluginProvider.Rpc.Regression.csproj -c Release

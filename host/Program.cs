@@ -8,6 +8,9 @@ using Microsoft.Extensions.Logging;
 // 载体中立检查（ADR-0015）：普通 .NET 控制台驱动核心，不碰 BDS、Shim、任何载体。
 var repoRoot = RepoRoot();
 var python = FindPython();
+var java = FindTool("java", "-version");
+var javac = FindTool("javac", "-version");
+var kotlinc = FindTool("kotlinc", "-version");
 var stage = Path.Combine(Path.GetTempPath(), "hosihikari-rpc-spike");
 if (Directory.Exists(stage))
 {
@@ -28,6 +31,15 @@ if (python is not null)
     StagePythonPlugin("PyRefuse", "refuse.py", parented: true);
     StagePythonPlugin("PyCrash", "crash.py", parented: true);
 }
+var javaStaged = java is not null && javac is not null
+    && StageJavaPlugin("JavaHello", "hello.HelloPlugin", "hello/HelloPlugin.java");
+if (javaStaged)
+{
+    StageJavaPlugin("JavaRefuse", "refuse.RefusePlugin", "refuse/RefusePlugin.java", parented: true);
+    StageJavaPlugin("JavaCrash", "crash.CrashPlugin", "crash/CrashPlugin.java", parented: true);
+}
+var kotlinStaged = java is not null && javac is not null && kotlinc is not null
+    && StageKotlinPlugin("KotlinHello", "hello.HelloPlugin", "hello/HelloPlugin.kt");
 StagePlugin("Refuse", "refuse.mjs", parented: true);
 StagePlugin("Crash", "crash.mjs", parented: true);
 StageQuickPlugin("QuickCrash", "crash.js", parented: true);
@@ -38,6 +50,14 @@ File.WriteAllText(Path.Combine(configRoot, "QuickHello.conf"), "greeting = \"qui
 if (python is not null)
 {
     File.WriteAllText(Path.Combine(configRoot, "PythonHello.conf"), "greeting = \"py-overridden\"\n");
+}
+if (javaStaged)
+{
+    File.WriteAllText(Path.Combine(configRoot, "JavaHello.conf"), "greeting = \"java-overridden\"\n");
+}
+if (kotlinStaged)
+{
+    File.WriteAllText(Path.Combine(configRoot, "KotlinHello.conf"), "greeting = \"kotlin-overridden\"\n");
 }
 
 var collection = new ServiceCollection();
@@ -196,6 +216,106 @@ else
         pyCrashLoaded && !host.LoadedNames.Contains("PyCrash")
             && removed.Any(name => name == "PyCrash"),
         $"removed=[{string.Join(", ", removed)}]"));
+}
+
+if (!javaStaged)
+{
+    checks.Add(("Java 绑定", true, "（跳过：没有 JDK 或编译失败）"));
+}
+else
+{
+    var javaData = Path.Combine(dataRoot, "JavaHello");
+    checks.Add(("Java 绑定：hello 快照、配置分层与启用",
+        host.LoadedNames.Contains("JavaHello")
+            && Read(javaData, "body.txt") == "body:java-overridden"
+            && Read(javaData, "enabled.txt") == "enabled",
+        $"body={Read(javaData, "body.txt")} enabled={Read(javaData, "enabled.txt")}"));
+
+    host.Events.Publish(new ChannelMessage("ping", "\"from-host\""));
+    Thread.Sleep(300);
+    checks.Add(("Java 绑定：默认异步事件到达",
+        Read(javaData, "ping.txt") == "ping:\"from-host\"", Read(javaData, "ping.txt")));
+
+    host.Events.Publish(new ChannelMessage("sync", "\"sync-host\""));
+    checks.Add(("Java 绑定：同步订阅等到 ack",
+        Read(javaData, "sync.txt") == "sync:\"sync-host\"", Read(javaData, "sync.txt")));
+
+    Thread.Sleep(800);
+    checks.Add(("Java 绑定：定时器与自发布",
+        Read(javaData, "self.txt") == "self:\"java-publish\""
+            && Read(javaData, "syncself.txt") == "syncself:\"java-sync\"",
+        $"self={Read(javaData, "self.txt")} syncself={Read(javaData, "syncself.txt")}"));
+
+    var javaDisabled = host.Disable("JavaHello");
+    var javaDisabledText = Read(javaData, "disabled.txt");
+    var javaEnabled = host.Enable("JavaHello");
+    var javaEnabledText = Read(javaData, "enabled.txt");
+    var javaUnloaded = host.Unload("JavaHello");
+    checks.Add(("Java 绑定：启停与卸载",
+        javaDisabled && javaDisabledText == "disabled" && javaEnabled && javaEnabledText == "enabled"
+            && javaUnloaded.Released && Read(javaData, "unloaded.txt") == "unloaded",
+        javaUnloaded.Error ?? Read(javaData, "unloaded.txt")));
+
+    var javaRefuseLoaded = host.Load(Path.Combine(stage, "parented", "JavaRefuse"));
+    var javaRefuseEnable = host.Enable("JavaRefuse");
+    var javaRefuseStill = host.LoadedNames.Contains("JavaRefuse");
+    var javaRefuseUnload = host.Unload("JavaRefuse");
+    checks.Add(("Java 绑定：拒绝启用与拒绝停用",
+        javaRefuseLoaded && !javaRefuseEnable && javaRefuseStill && !javaRefuseUnload.Released
+            && javaRefuseUnload.Error?.Contains("拒绝停用") == true,
+        javaRefuseUnload.Error ?? "（没有拒绝）"));
+
+    File.WriteAllText(Path.Combine(dataRoot, "JavaRefuse", "allow.txt"), "allow");
+    var javaRefuseAfter = host.Unload("JavaRefuse");
+    checks.Add(("Java 绑定：允许之后能卸掉",
+        javaRefuseAfter.Released && !host.LoadedNames.Contains("JavaRefuse"),
+        javaRefuseAfter.Error ?? "已回收"));
+
+    var javaCrashLoaded = host.Load(Path.Combine(stage, "parented", "JavaCrash"));
+    Thread.Sleep(600);
+    checks.Add(("Java 绑定：进程死亡走故障卸载并通知",
+        javaCrashLoaded && !host.LoadedNames.Contains("JavaCrash")
+            && removed.Any(name => name == "JavaCrash"),
+        $"removed=[{string.Join(", ", removed)}]"));
+}
+
+if (!kotlinStaged)
+{
+    checks.Add(("Kotlin 绑定", true, "（跳过：没有 Kotlin 编译器）"));
+}
+else
+{
+    var kotlinData = Path.Combine(dataRoot, "KotlinHello");
+    checks.Add(("Kotlin 绑定：hello 快照、配置分层与启用",
+        host.LoadedNames.Contains("KotlinHello")
+            && Read(kotlinData, "body.txt") == "body:kotlin-overridden"
+            && Read(kotlinData, "enabled.txt") == "enabled",
+        $"body={Read(kotlinData, "body.txt")} enabled={Read(kotlinData, "enabled.txt")}"));
+
+    host.Events.Publish(new ChannelMessage("ping", "\"from-host\""));
+    Thread.Sleep(300);
+    checks.Add(("Kotlin 绑定：默认异步事件到达",
+        Read(kotlinData, "ping.txt") == "ping:\"from-host\"", Read(kotlinData, "ping.txt")));
+
+    host.Events.Publish(new ChannelMessage("sync", "\"sync-host\""));
+    checks.Add(("Kotlin 绑定：同步订阅等到 ack",
+        Read(kotlinData, "sync.txt") == "sync:\"sync-host\"", Read(kotlinData, "sync.txt")));
+
+    Thread.Sleep(800);
+    checks.Add(("Kotlin 绑定：定时器与自发布",
+        Read(kotlinData, "self.txt") == "self:\"kotlin-publish\""
+            && Read(kotlinData, "syncself.txt") == "syncself:\"kotlin-sync\"",
+        $"self={Read(kotlinData, "self.txt")} syncself={Read(kotlinData, "syncself.txt")}"));
+
+    var kotlinDisabled = host.Disable("KotlinHello");
+    var kotlinDisabledText = Read(kotlinData, "disabled.txt");
+    var kotlinEnabled = host.Enable("KotlinHello");
+    var kotlinEnabledText = Read(kotlinData, "enabled.txt");
+    var kotlinUnloaded = host.Unload("KotlinHello");
+    checks.Add(("Kotlin 绑定：启停与卸载",
+        kotlinDisabled && kotlinDisabledText == "disabled" && kotlinEnabled && kotlinEnabledText == "enabled"
+            && kotlinUnloaded.Released && Read(kotlinData, "unloaded.txt") == "unloaded",
+        kotlinUnloaded.Error ?? Read(kotlinData, "unloaded.txt")));
 }
 
 // 拒绝是结果值，不是异常（ADR-0030）。
@@ -422,6 +542,148 @@ static string[]? FindPython()
     }
 
     return null;
+}
+
+bool StageJavaPlugin(string name, string pluginClass, string fixture, bool parented = false)
+{
+    var root = parented ? Path.Combine(stage, "parented") : pluginsRoot;
+    var package = Path.Combine(root, name);
+    var classes = Path.Combine(package, "classes");
+    Directory.CreateDirectory(classes);
+
+    var arguments = new List<string> { "-d", classes };
+    arguments.AddRange(BindingSources());
+    arguments.Add(Path.Combine(repoRoot, "bindings", "java", "fixtures", fixture));
+
+    var compile = RunTool(javac!, arguments);
+    if (!compile.Ok)
+    {
+        Console.WriteLine($"[Java] {name} 编译失败：{compile.Error}");
+        return false;
+    }
+
+    WritePluginManifest(
+        package,
+        name,
+        "classes",
+        ["java", "-cp", "./classes", "hosihikari.Binding", pluginClass]);
+    return true;
+}
+
+bool StageKotlinPlugin(string name, string pluginClass, string fixture)
+{
+    var package = Path.Combine(pluginsRoot, name);
+    var classes = Path.Combine(package, "classes");
+    Directory.CreateDirectory(classes);
+
+    var bindingArguments = new List<string> { "-d", classes };
+    bindingArguments.AddRange(BindingSources());
+    var bindingCompile = RunTool(javac!, bindingArguments);
+    if (!bindingCompile.Ok)
+    {
+        Console.WriteLine($"[Kotlin] {name} 的 Java 绑定编译失败：{bindingCompile.Error}");
+        return false;
+    }
+
+    var jar = Path.Combine(package, "plugin.jar");
+    var kotlinCompile = RunTool(kotlinc!, new[]
+    {
+        "-cp", classes,
+        "-include-runtime",
+        "-d", jar,
+        Path.Combine(repoRoot, "bindings", "kotlin", "fixtures", fixture),
+    });
+    if (!kotlinCompile.Ok)
+    {
+        Console.WriteLine($"[Kotlin] {name} 编译失败：{kotlinCompile.Error}");
+        return false;
+    }
+
+    var classpath = "./plugin.jar" + Path.PathSeparator + "./classes";
+    WritePluginManifest(
+        package,
+        name,
+        "plugin.jar",
+        ["java", "-cp", classpath, "hosihikari.Binding", pluginClass]);
+    return true;
+}
+
+IEnumerable<string> BindingSources()
+{
+    foreach (var file in new[] { "Binding.java", "Context.java", "HookResult.java", "Json.java", "Plugin.java" })
+    {
+        yield return Path.Combine(repoRoot, "bindings", "java", "hosihikari", file);
+    }
+}
+
+void WritePluginManifest(string package, string name, string entry, string[] command)
+{
+    var manifest = JsonSerializer.Serialize(new
+    {
+        name,
+        entry,
+        type = "hosihikari",
+        version = "1.0.0",
+        dependencies = new[] { new { name = "hosihikari" }, new { name = "hosihikari-rpc" } },
+        extraInfo = new Dictionary<string, string>
+        {
+            ["api"] = "2",
+            ["format_version"] = "1",
+            ["provider"] = "rpc",
+            ["command"] = JsonSerializer.Serialize(command),
+        },
+    });
+    File.WriteAllText(Path.Combine(package, "manifest.json"), manifest);
+}
+
+static string? FindTool(string command, string argument)
+{
+    try
+    {
+        var start = new System.Diagnostics.ProcessStartInfo(command)
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        start.ArgumentList.Add(argument);
+        using var process = System.Diagnostics.Process.Start(start);
+        if (process is null)
+        {
+            return null;
+        }
+
+        process.StandardOutput.ReadToEnd();
+        process.StandardError.ReadToEnd();
+        process.WaitForExit();
+        return process.ExitCode == 0 ? command : null;
+    }
+    catch (System.ComponentModel.Win32Exception)
+    {
+        return null;
+    }
+}
+
+static (bool Ok, string Error) RunTool(string command, IEnumerable<string> arguments)
+{
+    var start = new System.Diagnostics.ProcessStartInfo(command)
+    {
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+        UseShellExecute = false,
+        CreateNoWindow = true,
+    };
+    foreach (var argument in arguments)
+    {
+        start.ArgumentList.Add(argument);
+    }
+
+    using var process = System.Diagnostics.Process.Start(start)!;
+    var output = process.StandardOutput.ReadToEnd();
+    var error = process.StandardError.ReadToEnd();
+    process.WaitForExit();
+    return (process.ExitCode == 0, (output + error).Trim());
 }
 
 static string ConfigurationName()
