@@ -148,6 +148,14 @@ dotnet run --project test/Hosihikari.PluginProvider.Rpc.Regression.csproj -c Rel
 此检查直接编译生产连接源码及并列的 Abstractions 源码，覆盖阻塞写入、请求共用截止时间、
 并发释放、通知超时、订阅顺序，以及同步事件处理中的再次发布。CI 同时运行它与绑定断言。
 
+## 打包
+
+```
+pwsh ./pack.ps1 -Version 0.1.0 -OutputRoot artifacts
+```
+
+它把 Provider DLL、私有依赖、清单与 `bindings/` 装进 `hosihikari-rpc/`，共享层不随包走；打 `v*` 标签时 CI 把 zip 附到 release（ADR-0036）。
+
 ## 许可
 
 LGPL-3.0-or-later，见 [LICENSE.md](LICENSE.md)。

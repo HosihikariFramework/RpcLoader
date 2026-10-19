@@ -165,6 +165,16 @@ This check links the production connection source and sibling Abstractions sourc
 writes, shared request deadlines, concurrent disposal, notification timeouts, subscription ordering,
 and reentrant synchronous event publication. CI runs it alongside the binding assertions.
 
+## Packaging
+
+```
+pwsh ./pack.ps1 -Version 0.1.0 -OutputRoot artifacts
+```
+
+It assembles the provider DLL, its private dependencies, the manifest and `bindings/` into
+`hosihikari-rpc/`; the shared layer is not copied. Pushing a `v*` tag attaches the zip to the
+GitHub release (ADR-0036).
+
 ## Licence
 
 LGPL-3.0-or-later, see [LICENSE.md](LICENSE.md).
