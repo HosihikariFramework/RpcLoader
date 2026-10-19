@@ -11,10 +11,10 @@ def on_load(ctx):
     ctx.subscribe("ping", lambda json: _write(ctx, "ping.txt", "ping:" + str(json)))
     ctx.subscribe("sync", lambda json: _write(ctx, "sync.txt", "sync:" + str(json)), sync=True)
     # 真机没有外部发布者：插件自己发一条，走一遍 publish 与投递。
-    ctx.subscribe("self", lambda json: _write(ctx, "self.txt", "self:" + str(json)))
-    ctx.subscribe("syncself", lambda json: _write(ctx, "syncself.txt", "syncself:" + str(json)), sync=True)
-    ctx.run_later(0.5, lambda: ctx.publish("self", '"py-publish"'))
-    ctx.run_later(0.7, lambda: ctx.publish("syncself", '"py-sync"'))
+    ctx.subscribe("py-self", lambda json: _write(ctx, "self.txt", "self:" + str(json)))
+    ctx.subscribe("py-syncself", lambda json: _write(ctx, "syncself.txt", "syncself:" + str(json)), sync=True)
+    ctx.run_later(0.5, lambda: ctx.publish("py-self", '"py-publish"'))
+    ctx.run_later(0.7, lambda: ctx.publish("py-syncself", '"py-sync"'))
     ctx.log_info("python hello loaded")
 
 
