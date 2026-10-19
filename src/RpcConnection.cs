@@ -557,54 +557,60 @@ internal sealed class RpcConnection : IDisposable
         }
         _disposing = true;
 
-        // Closing a stream with an outstanding write can wait for that write; kill its reader first.
-        if (!_writeLock.Wait(0))
-        {
-            Abort();
-            if (!_writeLock.Wait(ShutdownTimeout))
-            {
-                throw new TimeoutException("插件进程的写入没有结束");
-            }
-        }
         try
         {
-            _input.Close();
-        }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException)
-        {
-            // 已经关了。
+            // Closing a stream with an outstanding write can wait for that write; kill its reader first.
+            if (!_writeLock.Wait(0))
+            {
+                Abort();
+                if (!_writeLock.Wait(ShutdownTimeout))
+                {
+                    throw new TimeoutException("插件进程的写入没有结束");
+                }
+            }
+            try
+            {
+                _input.Close();
+            }
+            catch (Exception ex) when (ex is IOException or InvalidOperationException)
+            {
+                // 已经关了。
+            }
+            finally
+            {
+                _writeLock.Release();
+            }
+
+            try
+            {
+                if (!_process.WaitForExit(ShutdownTimeout))
+                {
+                    _process.Kill(entireProcessTree: true);
+                    if (!_process.WaitForExit(ShutdownTimeout))
+                    {
+                        throw new TimeoutException("插件进程没有结束");
+                    }
+                }
+                _hasExited = true;
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
+            {
+                _hasExited = true;
+            }
         }
         finally
         {
-            _writeLock.Release();
-        }
-
-        try
-        {
-            if (!_process.WaitForExit(ShutdownTimeout))
+            // 即使写入或进程没在限期内收尾，订阅也不能留在事件总线上。
+            lock (_subscriptionLock)
             {
-                _process.Kill(entireProcessTree: true);
-                if (!_process.WaitForExit(ShutdownTimeout))
+                foreach (var subscription in _subscriptions.Values)
                 {
-                    throw new TimeoutException("插件进程没有结束");
+                    subscription.Dispose();
                 }
+                _subscriptions.Clear();
             }
-            _hasExited = true;
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
-        {
-            _hasExited = true;
-        }
 
-        lock (_subscriptionLock)
-        {
-            foreach (var subscription in _subscriptions.Values)
-            {
-                subscription.Dispose();
-            }
-            _subscriptions.Clear();
+            FailPending(new ObjectDisposedException(nameof(RpcConnection)));
         }
-
-        FailPending(new ObjectDisposedException(nameof(RpcConnection)));
     }
 }

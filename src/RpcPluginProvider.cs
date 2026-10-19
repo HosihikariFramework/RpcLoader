@@ -25,7 +25,7 @@ public sealed class RpcPluginProvider : IPluginProvider
         try
         {
             var connection = RpcConnection.Start(command, packageDirectory, context);
-            return new RpcPluginInstance(new RpcPlugin(connection), connection);
+            return new RpcPluginInstance(new RpcPlugin(connection), connection, context);
         }
         catch (Exception ex)
         {
@@ -46,12 +46,24 @@ internal sealed class RpcPlugin(RpcConnection connection) : IPlugin
     public void OnUnload() => connection.Unload();
 }
 
-internal sealed class RpcPluginInstance(RpcPlugin plugin, RpcConnection connection) : PluginInstance(plugin)
+internal sealed class RpcPluginInstance(
+    RpcPlugin plugin,
+    RpcConnection connection,
+    IPluginContext context) : PluginInstance(plugin)
 {
     /// <summary>搬运单元就是这个进程：关 stdin、等退出、必要时杀进程树；验证器看它是否退出。</summary>
     public override Func<bool> Release()
     {
-        connection.Dispose();
+        try
+        {
+            connection.Dispose();
+        }
+        catch (Exception ex)
+        {
+            // 进程没在限期内收尾：交给验证器如实报失败，卸载停在已放下（ADR-0025）。
+            context.Logger.LogWarning(ex, "{Name}: 关闭插件进程没有在限期内完成", context.Name);
+        }
+
         return () => connection.HasExited;
     }
 }
