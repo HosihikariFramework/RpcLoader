@@ -11,12 +11,13 @@ export default {
     // 真机没有外部发布者：插件自己发一条，走一遍 publish 与投递。
     ctx.subscribe('node-self', (json) => write(ctx, 'self.txt', 'self:' + json));
     ctx.subscribe('node-syncself', (json) => write(ctx, 'syncself.txt', 'syncself:' + json), { sync: true });
-    setTimeout(() => ctx.publish('node-self', '"hello-publish"').catch(() => {}), 500);
-    setTimeout(() => ctx.publish('node-syncself', '"sync-publish"').catch(() => {}), 700);
     ctx.logInfo('hello loaded');
   },
   onEnable(ctx) {
     write(ctx, 'enabled.txt', 'enabled');
+    // 闸门只在启用后放行；自发布放在这里，父级态下不会赶在启用前被丢掉。
+    setTimeout(() => ctx.publish('node-self', '"hello-publish"').catch(() => {}), 500);
+    setTimeout(() => ctx.publish('node-syncself', '"sync-publish"').catch(() => {}), 700);
   },
   onDisable(ctx) {
     write(ctx, 'disabled.txt', 'disabled');
