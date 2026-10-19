@@ -45,7 +45,7 @@ jobs:
           node-version: '24.x'
 
       # Java 与 Kotlin 绑定需要一个 JDK；Kotlin 编译器随后单独下载。
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
