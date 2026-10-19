@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Hosihikari.PluginProvider.Rpc.csproj" />
+  </Folder>
+  <Folder Name="/host/">
+    <Project Path="host/Hosihikari.PluginProvider.Rpc.Host.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test/Hosihikari.PluginProvider.Rpc.Regression.csproj" />
+  </Folder>
+</Solution>
