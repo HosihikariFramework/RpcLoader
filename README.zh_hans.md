@@ -85,24 +85,39 @@ export default {
 dotnet run --project host/Hosihikari.PluginProvider.Rpc.Host.csproj -c Release
 ```
 
-需要并列的 `Hosihikari.PluginManager`、`Hosihikari.Abstractions` 与 McMaster 的 fork checkout，以及 PATH 上的 Node 与
-`qjs`。它证明十六件事：Provider 由插件包登记；Node 与 QuickJS 两个绑定各自覆盖 hello 快照与配置分层、
-启用/停用/卸载、默认异步事件、同步 ack、进程死亡故障卸载；QuickJS 绑定还覆盖定时器与插件→宿主发布；
-另有拒绝启用留在册、拒绝停用中止卸载、允许后真正卸掉。
+需要并列的 `Hosihikari.PluginManager`、`Hosihikari.Abstractions` 与 McMaster 的 fork checkout，以及 PATH 上的
+Node、`qjs` 与 Python（`python3`；Windows 上是 `python` 或 `py -3`）。它覆盖：Provider 由插件包登记；
+Node、QuickJS 与 Python 三个绑定各自验证 hello 快照与配置分层、启用/停用/卸载、默认异步事件、同步 ack、
+进程死亡故障卸载；QuickJS 与 Python 还覆盖定时器与插件→宿主发布；另有拒绝启用留在册、拒绝停用中止卸载、
+允许后真正卸掉。
 
 ## 绑定
 
-`bindings/node` 与 `bindings/quickjs` 是两份参考绑定，各带测试夹具。QuickJS 这一份需要 PATH 上的
-`qjs`（quickjs-ng），或随包携带；把 `hosihikari.js` 与 `stdin_worker.js` 拷到入口旁边，命令指向它：
+`bindings/node`、`bindings/quickjs` 与 `bindings/python` 是三份参考绑定，各带测试夹具。
+
+QuickJS 这一份需要 PATH 上的 `qjs`（quickjs-ng），或随包携带；把 `hosihikari.js` 与 `stdin_worker.js`
+拷到入口旁边，命令指向它：
 
 ```json
 "command": "[\"qjs\", \"./hosihikari.js\", \"./main.js\"]"
 ```
 
 它的 `ctx` 通过 `ctx.writeData` 写文件；文件与定时器来自语言运行时（`qjs:std` / `qjs:os`），
-`print` / `console` 走 stderr。其他语言的参考绑定随后补上；协议不变。
+`print` / `console` 走 stderr。
 
-进程监督与订阅顺序回归不需要 Node 或 QuickJS，也可以单独运行：
+Python 这一份把 `hosihikari.py` 拷到入口旁边；插件定义模块级的 `on_load(ctx)` /
+`on_enable(ctx)` / `on_disable(ctx)` / `on_unload(ctx)`：
+
+```json
+"command": "[\"python3\", \"./hosihikari.py\", \"./main.py\"]"
+```
+
+`ctx` 提供 `name`、`data_directory`、`package_directory`、`config(key)`、`config_object`、
+`log_info/log_warn/log_error`、`write_data(file, text)`、`publish(topic, json)`、
+`subscribe(topic, fn, sync=False)`、`run_later(seconds, fn)`、`run_every(seconds, fn)`。
+`print` 走 stderr，stdout 只留给协议；其余语言按需补，协议不变。
+
+进程监督与订阅顺序回归不需要 Node、QuickJS 或 Python，也可以单独运行：
 
 ```
 dotnet run --project test/Hosihikari.PluginProvider.Rpc.Regression.csproj -c Release

@@ -95,29 +95,44 @@ data directory is read and written directly; timers belong to the language runti
 dotnet run --project host/Hosihikari.PluginProvider.Rpc.Host.csproj -c Release
 ```
 
-It needs sibling `Hosihikari.PluginManager`, `Hosihikari.Abstractions` and McMaster fork checkouts, and Node and
-`qjs` on PATH. It proves sixteen things: across both the Node and QuickJS bindings, the Provider is
-registered by a plugin package, the hello snapshot carries layered configuration, enable, disable
-and unload hooks arrive, asynchronous events arrive by default, a subscription that declares sync
-waits for the ack, and a process that dies outside a hook is faulted out and reported to the
-carrier; the QuickJS binding also runs timers and publishes back to the host; a refused enable
-stays loaded, a refused disable aborts the unload, and the plugin unloads once it allows it.
+It needs sibling `Hosihikari.PluginManager`, `Hosihikari.Abstractions` and McMaster fork checkouts,
+and Node, `qjs` and Python (`python3`; on Windows `python` or `py -3`) on PATH. It covers: the
+Provider is registered by a plugin package; the Node, QuickJS and Python bindings each verify the
+hello snapshot with layered configuration, enable/disable/unload hooks, asynchronous events by
+default, the sync ack, and faulting out a process that dies outside a hook; QuickJS and Python also
+run timers and publish back to the host; a refused enable stays loaded, a refused disable aborts
+the unload, and the plugin unloads once it allows it.
 
 ## Bindings
 
-`bindings/node` and `bindings/quickjs` hold the reference bindings, each with test fixtures. The
-QuickJS binding needs `qjs` (quickjs-ng) on PATH or carried in the package; copy `hosihikari.js`
-and `stdin_worker.js` next to the entry and point the command at it:
+`bindings/node`, `bindings/quickjs` and `bindings/python` hold the reference bindings, each with
+test fixtures.
+
+The QuickJS binding needs `qjs` (quickjs-ng) on PATH or carried in the package; copy
+`hosihikari.js` and `stdin_worker.js` next to the entry and point the command at it:
 
 ```json
 "command": "[\"qjs\", \"./hosihikari.js\", \"./main.js\"]"
 ```
 
 Its `ctx` writes through `ctx.writeData`; files and timers come from the language runtime
-(`qjs:std` / `qjs:os`), and `print` / `console` go to stderr. Reference bindings for other
-languages follow; the protocol does not change.
+(`qjs:std` / `qjs:os`), and `print` / `console` go to stderr.
 
-The process supervision and subscription ordering regressions can also run without Node or QuickJS:
+The Python binding copies `hosihikari.py` next to the entry; the plugin defines module-level
+`on_load(ctx)` / `on_enable(ctx)` / `on_disable(ctx)` / `on_unload(ctx)`:
+
+```json
+"command": "[\"python3\", \"./hosihikari.py\", \"./main.py\"]"
+```
+
+`ctx` provides `name`, `data_directory`, `package_directory`, `config(key)`, `config_object`,
+`log_info/log_warn/log_error`, `write_data(file, text)`, `publish(topic, json)`,
+`subscribe(topic, fn, sync=False)`, `run_later(seconds, fn)` and `run_every(seconds, fn)`.
+`print` goes to stderr; stdout is protocol only. Other languages follow on demand; the protocol
+does not change.
+
+The process supervision and subscription ordering regressions can also run without Node, QuickJS
+or Python:
 
 ```
 dotnet run --project test/Hosihikari.PluginProvider.Rpc.Regression.csproj -c Release

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
 using Hosihikari;
 using Hosihikari.PluginManagement;
 using Microsoft.Extensions.DependencyInjection;
@@ -6,6 +7,7 @@ using Microsoft.Extensions.Logging;
 
 // 载体中立检查（ADR-0015）：普通 .NET 控制台驱动核心，不碰 BDS、Shim、任何载体。
 var repoRoot = RepoRoot();
+var python = FindPython();
 var stage = Path.Combine(Path.GetTempPath(), "hosihikari-rpc-spike");
 if (Directory.Exists(stage))
 {
@@ -20,6 +22,12 @@ Directory.CreateDirectory(configRoot);
 StageProviderPackage();
 StagePlugin("Hello", "hello.mjs");
 StageQuickPlugin("QuickHello", "hello.js");
+if (python is not null)
+{
+    StagePythonPlugin("PythonHello", "hello.py");
+    StagePythonPlugin("PyRefuse", "refuse.py", parented: true);
+    StagePythonPlugin("PyCrash", "crash.py", parented: true);
+}
 StagePlugin("Refuse", "refuse.mjs", parented: true);
 StagePlugin("Crash", "crash.mjs", parented: true);
 StageQuickPlugin("QuickCrash", "crash.js", parented: true);
@@ -27,6 +35,10 @@ StageQuickPlugin("QuickCrash", "crash.js", parented: true);
 // 运营方的覆盖放包外（ADR-0018）。
 File.WriteAllText(Path.Combine(configRoot, "Hello.conf"), "greeting = \"overridden\"\n");
 File.WriteAllText(Path.Combine(configRoot, "QuickHello.conf"), "greeting = \"quick-overridden\"\n");
+if (python is not null)
+{
+    File.WriteAllText(Path.Combine(configRoot, "PythonHello.conf"), "greeting = \"py-overridden\"\n");
+}
 
 var collection = new ServiceCollection();
 collection.AddLogging(builder => builder
@@ -124,6 +136,67 @@ checks.Add(("QuickJS 绑定：启停与卸载",
     quickDisabled && quickDisabledText == "disabled" && quickEnabled && quickEnabledText == "enabled"
         && quickUnloaded.Released && Read(quickData, "unloaded.txt") == "unloaded",
     quickUnloaded.Error ?? Read(quickData, "unloaded.txt")));
+
+if (python is null)
+{
+    checks.Add(("Python 绑定", true, "（跳过：没有 Python）"));
+}
+else
+{
+    var pyData = Path.Combine(dataRoot, "PythonHello");
+    checks.Add(("Python 绑定：hello 快照、配置分层与启用",
+        host.LoadedNames.Contains("PythonHello")
+            && Read(pyData, "body.txt") == "body:py-overridden"
+            && Read(pyData, "enabled.txt") == "enabled",
+        $"body={Read(pyData, "body.txt")} enabled={Read(pyData, "enabled.txt")}"));
+
+    host.Events.Publish(new ChannelMessage("ping", "\"from-host\""));
+    Thread.Sleep(300);
+    checks.Add(("Python 绑定：默认异步事件到达",
+        Read(pyData, "ping.txt") == "ping:\"from-host\"", Read(pyData, "ping.txt")));
+
+    host.Events.Publish(new ChannelMessage("sync", "\"sync-host\""));
+    checks.Add(("Python 绑定：同步订阅等到 ack",
+        Read(pyData, "sync.txt") == "sync:\"sync-host\"", Read(pyData, "sync.txt")));
+
+    Thread.Sleep(800);
+    checks.Add(("Python 绑定：定时器与自发布",
+        Read(pyData, "self.txt") == "self:\"py-publish\""
+            && Read(pyData, "syncself.txt") == "syncself:\"py-sync\"",
+        $"self={Read(pyData, "self.txt")} syncself={Read(pyData, "syncself.txt")}"));
+
+    var pyDisabled = host.Disable("PythonHello");
+    var pyDisabledText = Read(pyData, "disabled.txt");
+    var pyEnabled = host.Enable("PythonHello");
+    var pyEnabledText = Read(pyData, "enabled.txt");
+    var pyUnloaded = host.Unload("PythonHello");
+    checks.Add(("Python 绑定：启停与卸载",
+        pyDisabled && pyDisabledText == "disabled" && pyEnabled && pyEnabledText == "enabled"
+            && pyUnloaded.Released && Read(pyData, "unloaded.txt") == "unloaded",
+        pyUnloaded.Error ?? Read(pyData, "unloaded.txt")));
+
+    var pyRefuseLoaded = host.Load(Path.Combine(stage, "parented", "PyRefuse"));
+    var pyRefuseEnable = host.Enable("PyRefuse");
+    var pyRefuseStill = host.LoadedNames.Contains("PyRefuse");
+    var pyRefuseUnload = host.Unload("PyRefuse");
+    checks.Add(("Python 绑定：拒绝启用与拒绝停用",
+        pyRefuseLoaded && !pyRefuseEnable && pyRefuseStill && !pyRefuseUnload.Released
+            && pyRefuseUnload.Error?.Contains("拒绝停用") == true,
+        pyRefuseUnload.Error ?? "（没有拒绝）"));
+
+    File.WriteAllText(Path.Combine(dataRoot, "PyRefuse", "allow.txt"), "allow");
+    var pyRefuseAfter = host.Unload("PyRefuse");
+    checks.Add(("Python 绑定：允许之后能卸掉",
+        pyRefuseAfter.Released && !host.LoadedNames.Contains("PyRefuse"),
+        pyRefuseAfter.Error ?? "已回收"));
+
+    var pyCrashLoaded = host.Load(Path.Combine(stage, "parented", "PyCrash"));
+    Thread.Sleep(400);
+    checks.Add(("Python 绑定：进程死亡走故障卸载并通知",
+        pyCrashLoaded && !host.LoadedNames.Contains("PyCrash")
+            && removed.Any(name => name == "PyCrash"),
+        $"removed=[{string.Join(", ", removed)}]"));
+}
 
 // 拒绝是结果值，不是异常（ADR-0030）。
 var refuseLoaded = host.Load(Path.Combine(stage, "parented", "Refuse"));
@@ -273,6 +346,82 @@ void StageQuickPlugin(string name, string entry, bool parented = false)
         Path.Combine(repoRoot, "bindings", "quickjs", entry),
         Path.Combine(package, entry));
     File.WriteAllText(Path.Combine(package, $"{name}.conf"), "greeting = \"quick-package\"\n");
+}
+
+void StagePythonPlugin(string name, string entry, bool parented = false)
+{
+    var root = parented ? Path.Combine(stage, "parented") : pluginsRoot;
+    var package = Path.Combine(root, name);
+    Directory.CreateDirectory(package);
+
+    var command = python!.Concat(new[] { "./hosihikari.py", "./" + entry }).ToArray();
+    var manifest = JsonSerializer.Serialize(new
+    {
+        name,
+        entry,
+        type = "hosihikari",
+        version = "1.0.0",
+        dependencies = new[] { new { name = "hosihikari" }, new { name = "hosihikari-rpc" } },
+        extraInfo = new Dictionary<string, string>
+        {
+            ["api"] = "2",
+            ["format_version"] = "1",
+            ["provider"] = "rpc",
+            ["command"] = JsonSerializer.Serialize(command),
+        },
+    });
+    File.WriteAllText(Path.Combine(package, "manifest.json"), manifest);
+
+    File.Copy(
+        Path.Combine(repoRoot, "bindings", "python", "hosihikari.py"),
+        Path.Combine(package, "hosihikari.py"));
+    File.Copy(
+        Path.Combine(repoRoot, "bindings", "python", entry),
+        Path.Combine(package, entry));
+}
+
+static string[]? FindPython()
+{
+    string[][] candidates = OperatingSystem.IsWindows()
+        ? [["python"], ["python3"], ["py", "-3"]]
+        : [["python3"], ["python"]];
+    foreach (var candidate in candidates)
+    {
+        try
+        {
+            var start = new System.Diagnostics.ProcessStartInfo(candidate[0])
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            foreach (var argument in candidate.Skip(1))
+            {
+                start.ArgumentList.Add(argument);
+            }
+
+            start.ArgumentList.Add("--version");
+            using var process = System.Diagnostics.Process.Start(start);
+            if (process is null)
+            {
+                continue;
+            }
+
+            process.StandardOutput.ReadToEnd();
+            process.StandardError.ReadToEnd();
+            process.WaitForExit();
+            if (process.ExitCode == 0)
+            {
+                return candidate;
+            }
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+        }
+    }
+
+    return null;
 }
 
 static string ConfigurationName()
