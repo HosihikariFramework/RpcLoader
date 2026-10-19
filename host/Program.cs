@@ -255,6 +255,12 @@ else
         $"self={Read(javaData, "self.txt")} syncself={Read(javaData, "syncself.txt")}"));
 
     var everyText = Read(javaData, "every.txt");
+    for (var i = 0; i < 30 && (!int.TryParse(everyText, out var ticks) || ticks < 2); i++)
+    {
+        Thread.Sleep(100);
+        everyText = Read(javaData, "every.txt");
+    }
+
     checks.Add(("Java 绑定：runEvery 周期回调",
         int.TryParse(everyText, out var javaTicks) && javaTicks >= 2, everyText));
 
