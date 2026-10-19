@@ -246,6 +246,10 @@ else
             && Read(javaData, "syncself.txt") == "syncself:\"java-sync\"",
         $"self={Read(javaData, "self.txt")} syncself={Read(javaData, "syncself.txt")}"));
 
+    var everyText = Read(javaData, "every.txt");
+    checks.Add(("Java 绑定：runEvery 周期回调",
+        int.TryParse(everyText, out var javaTicks) && javaTicks >= 2, everyText));
+
     var javaDisabled = host.Disable("JavaHello");
     var javaDisabledText = Read(javaData, "disabled.txt");
     var javaEnabled = host.Enable("JavaHello");

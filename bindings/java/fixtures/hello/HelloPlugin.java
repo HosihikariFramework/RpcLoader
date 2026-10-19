@@ -6,6 +6,7 @@ import hosihikari.Plugin;
 
 public final class HelloPlugin implements Plugin {
     private Context context;
+    private int ticks;
 
     private void write(String file, String text) {
         context.writeData(file, text);
@@ -21,6 +22,7 @@ public final class HelloPlugin implements Plugin {
         context.subscribe("java-syncself", json -> write("syncself.txt", "syncself:" + json), true);
         context.runLater(500, () -> context.publish("java-self", "\"java-publish\""));
         context.runLater(700, () -> context.publish("java-syncself", "\"java-sync\""));
+        context.runEvery(200, () -> write("every.txt", Integer.toString(++ticks)));
         context.logInfo("java hello loaded");
     }
 
