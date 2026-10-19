@@ -95,7 +95,7 @@ data directory is read and written directly; timers belong to the language runti
 dotnet run --project host/Hosihikari.PluginProvider.Rpc.Host.csproj -c Release
 ```
 
-It needs sibling `Hosihikari.PluginManager` and `Hosihikari.Abstractions` checkouts, and Node and
+It needs sibling `Hosihikari.PluginManager`, `Hosihikari.Abstractions` and McMaster fork checkouts, and Node and
 `qjs` on PATH. It proves sixteen things: across both the Node and QuickJS bindings, the Provider is
 registered by a plugin package, the hello snapshot carries layered configuration, enable, disable
 and unload hooks arrive, asynchronous events arrive by default, a subscription that declares sync

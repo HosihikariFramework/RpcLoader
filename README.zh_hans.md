@@ -85,7 +85,7 @@ export default {
 dotnet run --project host/Hosihikari.PluginProvider.Rpc.Host.csproj -c Release
 ```
 
-需要并列的 `Hosihikari.PluginManager` 与 `Hosihikari.Abstractions` checkout，以及 PATH 上的 Node 与
+需要并列的 `Hosihikari.PluginManager`、`Hosihikari.Abstractions` 与 McMaster 的 fork checkout，以及 PATH 上的 Node 与
 `qjs`。它证明十六件事：Provider 由插件包登记；Node 与 QuickJS 两个绑定各自覆盖 hello 快照与配置分层、
 启用/停用/卸载、默认异步事件、同步 ack、进程死亡故障卸载；QuickJS 绑定还覆盖定时器与插件→宿主发布；
 另有拒绝启用留在册、拒绝停用中止卸载、允许后真正卸掉。
