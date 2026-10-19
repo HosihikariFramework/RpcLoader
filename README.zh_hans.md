@@ -2,7 +2,7 @@
 
 [English](README.md) | [简体中文](README.zh_hans.md)
 
-> **例外一等 Provider。** RpcProvider 是官方 Provider，也是源码 AOT 为 IL 规则的唯一例外（ADR-0037）；插件无法编译为 IL 时才用它。
+> **例外一等 Provider。** RpcProvider 是官方 Provider，也是源码 AOT 为 IL 规则的唯一例外（ADR-0031）；插件无法编译为 IL 时才用它。
 
 星光框架的**例外一等跨进程桥**。插件以子进程运行，协议是行分隔的 JSON-RPC 2.0
 over stdio；它只认清单里的命令与协议。卸载就是让进程真正退出。

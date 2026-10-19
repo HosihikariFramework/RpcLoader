@@ -2,7 +2,7 @@
 
 [English](README.md) | [简体中文](README.zh_hans.md)
 
-> **Exception first-class provider.** RpcProvider is an official provider: the one exception to the source-AOT-to-IL rule (ADR-0037). Use it when a plugin cannot be compiled to IL.
+> **Exception first-class provider.** RpcProvider is an official provider: the one exception to the source-AOT-to-IL rule (ADR-0031). Use it when a plugin cannot be compiled to IL.
 
 The **exception first-class cross-process bridge** of the Hosihikari framework. Plugins run as child processes
 and speak newline-delimited JSON-RPC 2.0 over stdio; the bridge reads only the command in the
