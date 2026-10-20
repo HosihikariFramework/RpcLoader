@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -33,8 +34,17 @@ internal sealed class RpcConnection : IDisposable
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private readonly Dictionary<string, IDisposable> _subscriptions = new(StringComparer.Ordinal);
     private readonly Dictionary<string, bool> _syncTopics = new(StringComparer.Ordinal);
-    private readonly Channel<Incoming> _incoming = Channel.CreateUnbounded<Incoming>(
-        new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
+    private const int IncomingCapacity = 4096;
+    private const int MaxLineLength = 4 * 1024 * 1024;
+    private readonly Channel<Incoming> _incoming = Channel.CreateBounded<Incoming>(
+        new BoundedChannelOptions(IncomingCapacity)
+        {
+            SingleReader = true,
+            SingleWriter = true,
+            FullMode = BoundedChannelFullMode.Wait,
+        });
+    private readonly BlockingCollection<object> _replies = new(
+        new ConcurrentQueue<object>(), 1024);
     private readonly object _subscriptionLock = new();
     private long _nextId;
     private volatile bool _dead;
@@ -60,6 +70,32 @@ internal sealed class RpcConnection : IDisposable
         new Thread(ReadLoop) { IsBackground = true, Name = $"hosihikari-rpc:{_name}" }.Start();
         new Thread(ErrorLoop) { IsBackground = true, Name = $"hosihikari-rpc-err:{_name}" }.Start();
         new Thread(ProcessIncoming) { IsBackground = true, Name = $"hosihikari-rpc-in:{_name}" }.Start();
+        new Thread(ReplyLoop) { IsBackground = true, Name = $"hosihikari-rpc-out:{_name}" }.Start();
+    }
+
+    /// <summary>
+    /// 回复走单个写线程，而不是每条回复塞一个线程池任务。子进程暂时不读 stdin 时，
+    /// 只有这一个写线程被挡住；队列满后生产者等待，形成背压。回复顺序也与请求顺序一致。
+    /// </summary>
+    private void ReplyLoop()
+    {
+        try
+        {
+            foreach (var message in _replies.GetConsumingEnumerable())
+            {
+                try
+                {
+                    Write(message);
+                }
+                catch (Exception ex)
+                {
+                    _context.Logger.LogDebug(ex, "{Name}: 回复插件请求失败", _name);
+                }
+            }
+        }
+        catch (ObjectDisposedException)
+        {
+        }
     }
 
     private sealed record Incoming(string Method, JsonElement Parameters, JsonElement RequestId);
@@ -276,6 +312,12 @@ internal sealed class RpcConnection : IDisposable
                 {
                     continue;
                 }
+                if (line.Length > MaxLineLength)
+                {
+                    Fault($"插件写入了超过 {MaxLineLength} 字符的单行");
+                    Abort();
+                    break;
+                }
 
                 JsonDocument document;
                 try
@@ -323,9 +365,12 @@ internal sealed class RpcConnection : IDisposable
                     {
                         _ = Task.Run(() => HandlePluginRequest(method, parameters, requestId));
                     }
-                    else
+                    else if (!_incoming.Writer.TryWrite(new Incoming(method, parameters, requestId)))
                     {
-                        _incoming.Writer.TryWrite(new Incoming(method, parameters, requestId));
+                        // 队列满说明子进程在宿主处理不过来时还在灌通知；杀掉比无限占内存好。
+                        Fault("插件通知队列溢出");
+                        Abort();
+                        break;
                     }
                 }
             }
@@ -423,18 +468,15 @@ internal sealed class RpcConnection : IDisposable
 
     private void Reply(object message)
     {
-        // A full stdin pipe must not stop the reader from completing the host's outstanding requests.
-        _ = Task.Run(() =>
+        try
         {
-            try
-            {
-                Write(message);
-            }
-            catch (Exception ex)
-            {
-                _context.Logger.LogDebug(ex, "{Name}: 回复插件请求失败", _name);
-            }
-        });
+            // 有界队列：满时在这里等，把背压传回通知消费者；不再为每条回复创建线程池任务。
+            _replies.Add(message);
+        }
+        catch (InvalidOperationException)
+        {
+            // 连接正在关闭，回复已没有意义。
+        }
     }
 
     private void Publish(JsonElement parameters)
@@ -644,6 +686,7 @@ internal sealed class RpcConnection : IDisposable
         }
         _disposing = true;
         _incoming.Writer.TryComplete();
+        _replies.CompleteAdding();
 
         try
         {
