@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
 using Hosihikari;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -31,12 +32,16 @@ internal sealed class RpcConnection : IDisposable
     private readonly object _pendingLock = new();
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private readonly Dictionary<string, IDisposable> _subscriptions = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, bool> _syncTopics = new(StringComparer.Ordinal);
+    private readonly Channel<Incoming> _incoming = Channel.CreateUnbounded<Incoming>(
+        new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
     private readonly object _subscriptionLock = new();
     private long _nextId;
     private volatile bool _dead;
     private volatile bool _disposing;
     private volatile bool _hasExited;
     private int _faultReported;
+    private int _syncDeliveryDepth;
 
     private RpcConnection(Process process, IPluginContext context)
     {
@@ -54,6 +59,24 @@ internal sealed class RpcConnection : IDisposable
 
         new Thread(ReadLoop) { IsBackground = true, Name = $"hosihikari-rpc:{_name}" }.Start();
         new Thread(ErrorLoop) { IsBackground = true, Name = $"hosihikari-rpc-err:{_name}" }.Start();
+        new Thread(ProcessIncoming) { IsBackground = true, Name = $"hosihikari-rpc-in:{_name}" }.Start();
+    }
+
+    private sealed record Incoming(string Method, JsonElement Parameters, long? RequestId);
+
+    /// <summary>
+    /// 子进程发来的通知在一条有序队列上串行处理。发布不能再并发跑，
+    /// 否则同一个子进程先发的状态可能后到；读线程仍空着收宿主请求的应答。
+    /// </summary>
+    private void ProcessIncoming()
+    {
+        while (_incoming.Reader.WaitToReadAsync().AsTask().GetAwaiter().GetResult())
+        {
+            while (_incoming.Reader.TryRead(out var message))
+            {
+                HandlePluginRequest(message.Method, message.Parameters, message.RequestId);
+            }
+        }
     }
 
     /// <summary>
@@ -295,14 +318,15 @@ internal sealed class RpcConnection : IDisposable
                         ? parsed
                         : (long?)null;
 
-                    // Subscription changes keep wire order; publishing may wait for a reply on this reader.
-                    if (method is "hosihikari/events/subscribe" or "hosihikari/events/unsubscribe")
+                    // 普通通知按到达顺序走单消费者。同步投递期间允许重入：子进程可能先发一条
+                    // 嵌套发布，等宿主处理完才回投递应答 —— 这一条不能排在阻塞的消费者后面。
+                    if (Volatile.Read(ref _syncDeliveryDepth) > 0)
                     {
-                        HandlePluginRequest(method, parameters, requestId);
+                        _ = Task.Run(() => HandlePluginRequest(method, parameters, requestId));
                     }
                     else
                     {
-                        _ = Task.Run(() => HandlePluginRequest(method, parameters, requestId));
+                        _incoming.Writer.TryWrite(new Incoming(method, parameters, requestId));
                     }
                 }
             }
@@ -427,17 +451,41 @@ internal sealed class RpcConnection : IDisposable
         var sync = parameters.TryGetProperty("sync", out var value) && value.ValueKind == JsonValueKind.True;
         lock (_subscriptionLock)
         {
-            if (_disposing || _dead || _subscriptions.ContainsKey(topic))
+            if (_disposing || _dead)
             {
                 return;
             }
 
+            if (_subscriptions.ContainsKey(topic))
+            {
+                // 已有订阅时，后来者要求 sync 会把整条 topic 升级为同步；绑定只在首次订阅发标志，
+                // 所以这里不能只信第一次的 false。
+                if (sync)
+                {
+                    _syncTopics[topic] = true;
+                }
+
+                return;
+            }
+
+            _syncTopics[topic] = sync;
             _subscriptions[topic] = _context.Events.Subscribe<ChannelMessage>(message =>
             {
-                if (message.Topic == topic)
+                if (message.Topic != topic)
                 {
-                    Deliver(topic, message.Json, sync);
+                    return;
                 }
+
+                bool current;
+                lock (_subscriptionLock)
+                {
+                    if (!_syncTopics.TryGetValue(topic, out current))
+                    {
+                        return;
+                    }
+                }
+
+                Deliver(topic, message.Json, current);
             });
         }
     }
@@ -447,6 +495,7 @@ internal sealed class RpcConnection : IDisposable
         var topic = parameters.GetProperty("topic").GetString() ?? "";
         lock (_subscriptionLock)
         {
+            _syncTopics.Remove(topic);
             if (_subscriptions.Remove(topic, out var subscription))
             {
                 subscription.Dispose();
@@ -475,6 +524,7 @@ internal sealed class RpcConnection : IDisposable
             return;
         }
 
+        Interlocked.Increment(ref _syncDeliveryDepth);
         try
         {
             SendRequest("hosihikari/events/deliver", new { topic, json }, SyncEventTimeout);
@@ -482,6 +532,10 @@ internal sealed class RpcConnection : IDisposable
         catch (Exception ex)
         {
             Fault($"同步事件投递失败：{ex.Message}");
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _syncDeliveryDepth);
         }
     }
 
@@ -583,6 +637,7 @@ internal sealed class RpcConnection : IDisposable
             return;
         }
         _disposing = true;
+        _incoming.Writer.TryComplete();
 
         try
         {
@@ -635,6 +690,7 @@ internal sealed class RpcConnection : IDisposable
                     subscription.Dispose();
                 }
                 _subscriptions.Clear();
+                _syncTopics.Clear();
             }
 
             FailPending(new ObjectDisposedException(nameof(RpcConnection)));

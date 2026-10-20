@@ -79,6 +79,37 @@ Check("subscription changes retain receive order", () =>
     Assert(context.Bus.Active == 0, $"{context.Bus.Active} subscriptions survived their unsubscribe");
 });
 
+Check("published notifications keep wire order", () =>
+{
+    var context = new Context();
+    context.Bus.SlowTopic = "first";
+    using var connection = Start("publish-order", context);
+    var deadline = Stopwatch.StartNew();
+    while (context.Bus.Published.Count < 2 && deadline.Elapsed < TimeSpan.FromSeconds(5))
+    {
+        Thread.Sleep(20);
+    }
+
+    Assert(context.Bus.Published.SequenceEqual(["first", "second"]),
+        string.Join(",", context.Bus.Published));
+});
+
+Check("duplicate subscribe upgrades the topic to sync", () =>
+{
+    var context = new Context();
+    using var connection = Start("dupsync", context);
+    var deadline = Stopwatch.StartNew();
+    while (context.Bus.Active == 0 && deadline.Elapsed < TimeSpan.FromSeconds(5))
+    {
+        Thread.Sleep(20);
+    }
+
+    var watch = Stopwatch.StartNew();
+    context.Bus.Publish(new ChannelMessage("dup", "{}"));
+    Assert(watch.Elapsed >= TimeSpan.FromMilliseconds(200),
+        $"publish returned after {watch.ElapsedMilliseconds}ms");
+});
+
 Check("parent exit is detected while stdout stays open", () =>
 {
     var context = new Context();
@@ -158,6 +189,32 @@ static void Child(string mode)
         return;
     }
     if (mode == "orphan-child") { Thread.Sleep(3000); return; }
+    if (mode == "publish-order")
+    {
+        Send(new { jsonrpc = "2.0", method = "hosihikari/events/publish", @params = new { topic = "first", json = "\"1\"" } });
+        Send(new { jsonrpc = "2.0", method = "hosihikari/events/publish", @params = new { topic = "second", json = "\"2\"" } });
+        Thread.Sleep(1000);
+        return;
+    }
+    if (mode == "dupsync")
+    {
+        Send(new { jsonrpc = "2.0", id = 1, method = "hosihikari/events/subscribe", @params = new { topic = "dup", sync = false } });
+        Send(new { jsonrpc = "2.0", id = 2, method = "hosihikari/events/subscribe", @params = new { topic = "dup", sync = true } });
+        for (var i = 0; i < 2; i++) if (Console.ReadLine() is null) return;
+        while (Console.ReadLine() is { } line)
+        {
+            using var document = JsonDocument.Parse(line);
+            var root = document.RootElement;
+            if (root.TryGetProperty("method", out var method)
+                && method.GetString() == "hosihikari/events/deliver")
+            {
+                Thread.Sleep(300);
+                Send(new { jsonrpc = "2.0", id = root.GetProperty("id").GetInt64(), result = (object?)null });
+                return;
+            }
+        }
+        return;
+    }
     if (mode == "delayed") Thread.Sleep(180);
     if (mode == "order")
     {
@@ -233,6 +290,7 @@ sealed class Bus : IEventBus
     private readonly object _gate = new();
     private readonly List<Action<ChannelMessage>> _handlers = [];
     public List<string> Published { get; } = [];
+    public string? SlowTopic { get; set; }
     public int Active { get { lock (_gate) return _handlers.Count; } }
     public IDisposable Subscribe<T>(Action<T> handler)
     {
@@ -244,6 +302,11 @@ sealed class Bus : IEventBus
     public void Publish<T>(T message)
     {
         var channel = (ChannelMessage)(object)message!;
+        if (channel.Topic == SlowTopic)
+        {
+            Thread.Sleep(100);
+        }
+
         Action<ChannelMessage>[] snapshot;
         lock (_gate) { Published.Add(channel.Topic); snapshot = _handlers.ToArray(); }
         foreach (var handler in snapshot) handler(channel);
