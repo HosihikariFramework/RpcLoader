@@ -10,6 +10,15 @@ over stdio；它只认清单里的命令与协议。卸载就是让进程真正�
 **它自己也是一个插件包**：`hosihikari-rpc`。装载时在 `OnLoad` 里把自己登记给框架，此后
 `provider: "rpc"` 的包才会被它接管 —— 所以进程外插件要在清单里声明依赖它。
 
+## 模板
+
+[RpcPluginTemplate](https://github.com/HosihikariFramework/RpcPluginTemplate) 提供三个运行时的完整
+插件包：
+
+- [Node.js/TypeScript 运行时](https://github.com/HosihikariFramework/RpcPluginTemplate/tree/main/node-typescript)
+- [Python 运行时](https://github.com/HosihikariFramework/RpcPluginTemplate/tree/main/python)
+- [Kotlin/JVM 运行时](https://github.com/HosihikariFramework/RpcPluginTemplate/tree/main/kotlin)
+
 ## 插件包长什么样
 
 ```

@@ -12,6 +12,15 @@ manifest and the protocol. Unload means the process really exits.
 the framework from `OnLoad`; packages with `provider: "rpc"` are only handled after that — which is
 why bridge plugins declare a dependency on it.
 
+## Templates
+
+[RpcPluginTemplate](https://github.com/HosihikariFramework/RpcPluginTemplate) carries complete
+packages for three runtimes:
+
+- [Node.js/TypeScript runtime](https://github.com/HosihikariFramework/RpcPluginTemplate/tree/main/node-typescript)
+- [Python runtime](https://github.com/HosihikariFramework/RpcPluginTemplate/tree/main/python)
+- [Kotlin/JVM runtime](https://github.com/HosihikariFramework/RpcPluginTemplate/tree/main/kotlin)
+
 ## What a plugin package looks like
 
 ```
