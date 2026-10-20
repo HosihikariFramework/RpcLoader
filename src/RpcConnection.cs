@@ -359,9 +359,10 @@ internal sealed class RpcConnection : IDisposable
                     // JSON-RPC 2.0 的 id 可以是字符串或数字；原样回显，不能只认 Int64。
                     var requestId = root.TryGetProperty("id", out var idValue) ? idValue.Clone() : default;
 
-                    // 普通通知按到达顺序走单消费者。同步投递期间允许重入：子进程可能先发一条
-                    // 嵌套发布，等宿主处理完才回投递应答 —— 这一条不能排在阻塞的消费者后面。
-                    if (Volatile.Read(ref _syncDeliveryDepth) > 0)
+                    // 普通通知按到达顺序走单消费者。同步投递期间只让带 id 的请求重入：
+                    // 子进程可能先发一条嵌套请求，等宿主处理完才回投递应答，这一条不能排在
+                    // 阻塞的消费者后面；通知仍排队，避免并发投递打乱同一子进程的先后。
+                    if (Volatile.Read(ref _syncDeliveryDepth) > 0 && requestId.ValueKind != JsonValueKind.Undefined)
                     {
                         _ = Task.Run(() => HandlePluginRequest(method, parameters, requestId));
                     }

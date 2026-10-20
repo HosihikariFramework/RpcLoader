@@ -150,6 +150,30 @@ Check("synchronous delivery permits a reentrant publish", () =>
     Assert(context.Bus.Published.Contains("nested"), "nested publication never reached the bus");
 });
 
+Check("notifications keep order during synchronous delivery", () =>
+{
+    var context = new Context();
+    context.Bus.SlowTopic = "first";
+    using var connection = Start("sync-notify-order", context);
+    var deadline = Stopwatch.StartNew();
+    while (context.Bus.Active == 0 && deadline.Elapsed < TimeSpan.FromSeconds(5))
+    {
+        Thread.Sleep(20);
+    }
+
+    Assert(context.Bus.Active > 0, "subscription never arrived");
+    context.Bus.Publish(new ChannelMessage("gate", "{}"));
+
+    deadline.Restart();
+    while (!context.Bus.Published.Contains("second") && deadline.Elapsed < TimeSpan.FromSeconds(5))
+    {
+        Thread.Sleep(20);
+    }
+
+    var sequence = context.Bus.Published.Where(topic => topic is "first" or "second").ToArray();
+    Assert(sequence.SequenceEqual(["first", "second"]), string.Join(",", sequence));
+});
+
 Check("incoming notification flood faults and kills", () =>
 {
     var context = new Context();
@@ -255,6 +279,29 @@ static void Child(string mode)
         }
 
         Thread.Sleep(Timeout.Infinite);
+        return;
+    }
+    if (mode == "sync-notify-order")
+    {
+        Send(new { jsonrpc = "2.0", id = 1, method = "hosihikari/events/subscribe", @params = new { topic = "gate", sync = true } });
+        if (Console.ReadLine() is null) return;
+        while (Console.ReadLine() is { } line)
+        {
+            using var document = JsonDocument.Parse(line);
+            var root = document.RootElement;
+            if (!root.TryGetProperty("method", out var method)
+                || method.GetString() != "hosihikari/events/deliver")
+            {
+                continue;
+            }
+
+            Send(new { jsonrpc = "2.0", method = "hosihikari/events/publish", @params = new { topic = "first", json = "\"1\"" } });
+            Send(new { jsonrpc = "2.0", method = "hosihikari/events/publish", @params = new { topic = "second", json = "\"2\"" } });
+            Thread.Sleep(100);
+            Send(new { jsonrpc = "2.0", id = root.GetProperty("id").GetInt64(), result = (object?)null });
+            Thread.Sleep(1000);
+            return;
+        }
         return;
     }
     if (mode == "string-id")
