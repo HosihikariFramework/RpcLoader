@@ -179,7 +179,7 @@ and reentrant synchronous event publication. CI runs it alongside the binding as
 ## Packaging
 
 ```
-pwsh ./pack.ps1 -Version 0.2.0 -OutputRoot artifacts
+pwsh ./pack.ps1 -Version 0.2.1 -OutputRoot artifacts
 ```
 
 It assembles the provider DLL, its private dependencies, the manifest and `bindings/` into

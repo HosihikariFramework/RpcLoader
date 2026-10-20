@@ -2,7 +2,7 @@
   "format_version": 3,
   "format_uuid": "289f771f-2c9a-4d73-9f3f-8492495a924d",
   "tooth": "github.com/HosihikariFramework/RpcProvider",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "info": {
     "name": "星光 · 进程外 Provider",
     "description": "星光框架的进程外插件 Provider：行分隔 JSON-RPC 2.0，附带 Node/QuickJS/Python/Java/Kotlin 绑定",
