@@ -301,9 +301,17 @@ internal sealed class RpcConnection : IDisposable
     {
         try
         {
+            // StreamReader.ReadLine 会先把整行分配出来，4 MiB 的上限检查就晚了。
+            var lines = new BoundedLineReader(_process.StandardOutput, MaxLineLength);
             while (true)
             {
-                var line = _process.StandardOutput.ReadLine();
+                var line = lines.ReadLine(out var overflow);
+                if (overflow)
+                {
+                    Fault($"插件写入了超过 {MaxLineLength} 字符的单行");
+                    Abort();
+                    break;
+                }
                 if (line is null)
                 {
                     break;
@@ -311,12 +319,6 @@ internal sealed class RpcConnection : IDisposable
                 if (string.IsNullOrWhiteSpace(line))
                 {
                     continue;
-                }
-                if (line.Length > MaxLineLength)
-                {
-                    Fault($"插件写入了超过 {MaxLineLength} 字符的单行");
-                    Abort();
-                    break;
                 }
 
                 JsonDocument document;
@@ -390,6 +392,54 @@ internal sealed class RpcConnection : IDisposable
             if (!_disposing)
             {
                 Fault("插件进程退出");
+            }
+        }
+    }
+
+    /// <summary>逐块读取；单行超过上限时立刻停下，不会先分配整行。</summary>
+    private sealed class BoundedLineReader(StreamReader reader, int maxLength)
+    {
+        private readonly char[] _buffer = new char[4096];
+        private int _start;
+        private int _end;
+
+        public string? ReadLine(out bool overflow)
+        {
+            overflow = false;
+            var line = new StringBuilder();
+            while (true)
+            {
+                if (_start == _end)
+                {
+                    _end = reader.Read(_buffer, 0, _buffer.Length);
+                    _start = 0;
+                    if (_end == 0)
+                    {
+                        return line.Length == 0 ? null : line.ToString();
+                    }
+                }
+
+                while (_start < _end)
+                {
+                    var character = _buffer[_start++];
+                    if (character == '\n')
+                    {
+                        if (line.Length > 0 && line[line.Length - 1] == '\r')
+                        {
+                            line.Length--;
+                        }
+
+                        return line.ToString();
+                    }
+
+                    if (line.Length >= maxLength)
+                    {
+                        overflow = true;
+                        return null;
+                    }
+
+                    line.Append(character);
+                }
             }
         }
     }

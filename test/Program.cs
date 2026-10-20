@@ -127,6 +127,21 @@ Check("string ids echo and structured payloads survive", () =>
     Assert(context.Bus.Messages.Any(message => message.Topic == "ack"), "string id was not echoed");
 });
 
+Check("an oversized line faults and kills", () =>
+{
+    var context = new Context();
+    using var connection = Start("oversized-line", context);
+    var deadline = Stopwatch.StartNew();
+    while (context.Faults.IsEmpty && deadline.Elapsed < TimeSpan.FromSeconds(20))
+    {
+        Thread.Sleep(20);
+    }
+
+    Assert(context.Faults.Any(reason => reason.Contains("超过", StringComparison.Ordinal)),
+        context.Faults.IsEmpty ? "no fault" : string.Join(" | ", context.Faults));
+    Assert(ProcessOf(connection).WaitForExit(5000), "child survived oversized line");
+});
+
 Check("parent exit is detected while stdout stays open", () =>
 {
     var context = new Context();
@@ -261,6 +276,12 @@ static void Child(string mode)
         return;
     }
     if (mode == "orphan-child") { Thread.Sleep(3000); return; }
+    if (mode == "oversized-line")
+    {
+        Console.WriteLine(new string('x', 4 * 1024 * 1024 + 1));
+        Thread.Sleep(Timeout.Infinite);
+        return;
+    }
     if (mode == "flood-incoming")
     {
         for (var i = 0; i < 6000; i++)
