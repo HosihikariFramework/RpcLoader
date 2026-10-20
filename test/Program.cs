@@ -110,6 +110,23 @@ Check("duplicate subscribe upgrades the topic to sync", () =>
         $"publish returned after {watch.ElapsedMilliseconds}ms");
 });
 
+Check("string ids echo and structured payloads survive", () =>
+{
+    var context = new Context();
+    using var connection = Start("string-id", context);
+    var deadline = Stopwatch.StartNew();
+    while (!context.Bus.Messages.Any(message => message.Topic == "ack")
+           && deadline.Elapsed < TimeSpan.FromSeconds(5))
+    {
+        Thread.Sleep(20);
+    }
+
+    var structured = context.Bus.Messages.FirstOrDefault(message => message.Topic == "object");
+    Assert(structured is not null && structured.Json == "{\"amount\":5}",
+        structured?.Json ?? "(missing)");
+    Assert(context.Bus.Messages.Any(message => message.Topic == "ack"), "string id was not echoed");
+});
+
 Check("parent exit is detected while stdout stays open", () =>
 {
     var context = new Context();
@@ -189,6 +206,19 @@ static void Child(string mode)
         return;
     }
     if (mode == "orphan-child") { Thread.Sleep(3000); return; }
+    if (mode == "string-id")
+    {
+        Send(new { jsonrpc = "2.0", id = "17", method = "hosihikari/events/publish", @params = new { topic = "object", json = new { amount = 5 } } });
+        var reply = Console.ReadLine();
+        if (reply is null || !reply.Contains("\"id\":\"17\""))
+        {
+            return;
+        }
+
+        Send(new { jsonrpc = "2.0", method = "hosihikari/events/publish", @params = new { topic = "ack", json = "\"ok\"" } });
+        Thread.Sleep(1000);
+        return;
+    }
     if (mode == "publish-order")
     {
         Send(new { jsonrpc = "2.0", method = "hosihikari/events/publish", @params = new { topic = "first", json = "\"1\"" } });
@@ -290,6 +320,7 @@ sealed class Bus : IEventBus
     private readonly object _gate = new();
     private readonly List<Action<ChannelMessage>> _handlers = [];
     public List<string> Published { get; } = [];
+    public List<ChannelMessage> Messages { get; } = [];
     public string? SlowTopic { get; set; }
     public int Active { get { lock (_gate) return _handlers.Count; } }
     public IDisposable Subscribe<T>(Action<T> handler)
@@ -308,7 +339,7 @@ sealed class Bus : IEventBus
         }
 
         Action<ChannelMessage>[] snapshot;
-        lock (_gate) { Published.Add(channel.Topic); snapshot = _handlers.ToArray(); }
+        lock (_gate) { Published.Add(channel.Topic); Messages.Add(channel); snapshot = _handlers.ToArray(); }
         foreach (var handler in snapshot) handler(channel);
     }
     private sealed class Handle(Action release) : IDisposable { public void Dispose() => release(); }

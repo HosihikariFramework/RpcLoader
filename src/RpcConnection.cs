@@ -62,7 +62,7 @@ internal sealed class RpcConnection : IDisposable
         new Thread(ProcessIncoming) { IsBackground = true, Name = $"hosihikari-rpc-in:{_name}" }.Start();
     }
 
-    private sealed record Incoming(string Method, JsonElement Parameters, long? RequestId);
+    private sealed record Incoming(string Method, JsonElement Parameters, JsonElement RequestId);
 
     /// <summary>
     /// 子进程发来的通知在一条有序队列上串行处理。发布不能再并发跑，
@@ -314,9 +314,8 @@ internal sealed class RpcConnection : IDisposable
                     var parameters = root.TryGetProperty("params", out var parametersElement)
                         ? parametersElement.Clone()
                         : default;
-                    var requestId = root.TryGetProperty("id", out var idValue) && idValue.TryGetInt64(out var parsed)
-                        ? parsed
-                        : (long?)null;
+                    // JSON-RPC 2.0 的 id 可以是字符串或数字；原样回显，不能只认 Int64。
+                    var requestId = root.TryGetProperty("id", out var idValue) ? idValue.Clone() : default;
 
                     // 普通通知按到达顺序走单消费者。同步投递期间允许重入：子进程可能先发一条
                     // 嵌套发布，等宿主处理完才回投递应答 —— 这一条不能排在阻塞的消费者后面。
@@ -351,7 +350,9 @@ internal sealed class RpcConnection : IDisposable
 
     private void Complete(JsonElement idElement, JsonElement result, JsonElement error, JsonElement root)
     {
-        if (!idElement.TryGetInt64(out var id))
+        if (!idElement.TryGetInt64(out var id)
+            && !(idElement.ValueKind == JsonValueKind.String
+                 && long.TryParse(idElement.GetString(), out id)))
         {
             return;
         }
@@ -380,7 +381,7 @@ internal sealed class RpcConnection : IDisposable
         }
     }
 
-    private void HandlePluginRequest(string method, JsonElement parameters, long? requestId)
+    private void HandlePluginRequest(string method, JsonElement parameters, JsonElement requestId)
     {
         try
         {
@@ -402,16 +403,16 @@ internal sealed class RpcConnection : IDisposable
                     throw new InvalidOperationException($"未知方法 {method}");
             }
 
-            if (requestId is { } id)
+            if (requestId.ValueKind != JsonValueKind.Undefined)
             {
-                Reply(new { jsonrpc = "2.0", id, result = (object?)null });
+                Reply(new { jsonrpc = "2.0", id = requestId, result = (object?)null });
             }
         }
         catch (Exception ex)
         {
-            if (requestId is { } id && !_dead)
+            if (requestId.ValueKind != JsonValueKind.Undefined && !_dead)
             {
-                Reply(new { jsonrpc = "2.0", id, error = new { code = -32603, message = ex.Message } });
+                Reply(new { jsonrpc = "2.0", id = requestId, error = new { code = -32603, message = ex.Message } });
             }
             else
             {
@@ -439,8 +440,13 @@ internal sealed class RpcConnection : IDisposable
     private void Publish(JsonElement parameters)
     {
         var topic = parameters.GetProperty("topic").GetString() ?? "";
-        var json = parameters.TryGetProperty("json", out var value) && value.ValueKind == JsonValueKind.String
-            ? value.GetString()
+        var json = parameters.TryGetProperty("json", out var value)
+            ? value.ValueKind switch
+            {
+                JsonValueKind.String => value.GetString(),
+                JsonValueKind.Null or JsonValueKind.Undefined => null,
+                _ => value.GetRawText(),
+            }
             : null;
         _context.Events.Publish(new ChannelMessage(topic, json));
     }
