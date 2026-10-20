@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
@@ -78,6 +79,20 @@ Check("subscription changes retain receive order", () =>
     Assert(context.Bus.Active == 0, $"{context.Bus.Active} subscriptions survived their unsubscribe");
 });
 
+Check("parent exit is detected while stdout stays open", () =>
+{
+    var context = new Context();
+    using var connection = Start("orphan", context);
+    var deadline = Stopwatch.StartNew();
+    while (context.Faults.IsEmpty && deadline.Elapsed < TimeSpan.FromSeconds(5))
+    {
+        Thread.Sleep(20);
+    }
+
+    Assert(!context.Faults.IsEmpty, "parent exit was not reported");
+    Assert(connection.HasExited, "parent still reported alive");
+});
+
 Check("synchronous delivery permits a reentrant publish", () =>
 {
     var context = new Context();
@@ -129,6 +144,20 @@ static void Child(string mode)
 {
     static void Send(object message) => Console.WriteLine(JsonSerializer.Serialize(message));
     if (mode == "blocked") { Thread.Sleep(Timeout.Infinite); return; }
+    if (mode == "orphan")
+    {
+        var start = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false };
+        if (Path.GetFileNameWithoutExtension(Environment.ProcessPath!) == "dotnet")
+        {
+            start.ArgumentList.Add(Assembly.GetExecutingAssembly().Location);
+        }
+
+        start.ArgumentList.Add("--child");
+        start.ArgumentList.Add("orphan-child");
+        Process.Start(start);
+        return;
+    }
+    if (mode == "orphan-child") { Thread.Sleep(3000); return; }
     if (mode == "delayed") Thread.Sleep(180);
     if (mode == "order")
     {
@@ -196,7 +225,8 @@ sealed class Context : IPluginContext
     public IPluginServiceRegistry PluginServices => throw new NotSupportedException();
     public IServiceProvider Services => throw new NotSupportedException();
     public void RegisterProvider(IPluginProvider provider) => throw new NotSupportedException();
-    public void ReportFault(string reason) { }
+    public ConcurrentQueue<string> Faults { get; } = new();
+    public void ReportFault(string reason) => Faults.Enqueue(reason);
 }
 sealed class Bus : IEventBus
 {

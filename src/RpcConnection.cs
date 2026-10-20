@@ -45,8 +45,30 @@ internal sealed class RpcConnection : IDisposable
         _name = context.Name;
         _input = process.StandardInput.BaseStream;
 
+        process.EnableRaisingEvents = true;
+        process.Exited += (_, _) => OnProcessExited();
+        if (process.HasExited)
+        {
+            OnProcessExited();
+        }
+
         new Thread(ReadLoop) { IsBackground = true, Name = $"hosihikari-rpc:{_name}" }.Start();
         new Thread(ErrorLoop) { IsBackground = true, Name = $"hosihikari-rpc-err:{_name}" }.Start();
+    }
+
+    /// <summary>
+    /// 子进程退出的权威信号。stdout 可能被孙进程继承而迟迟不 EOF，不能只等 ReadLoop。
+    /// </summary>
+    private void OnProcessExited()
+    {
+        if (_disposing)
+        {
+            return;
+        }
+
+        _dead = true;
+        FailPending(new InvalidOperationException("插件进程已退出"));
+        Fault("插件进程退出");
     }
 
     public static RpcConnection Start(IReadOnlyList<string> command, string packageDirectory, IPluginContext context)
@@ -519,6 +541,11 @@ internal sealed class RpcConnection : IDisposable
 
     private void Fault(string reason)
     {
+        if (_disposing)
+        {
+            return;
+        }
+
         if (Interlocked.Exchange(ref _faultReported, 1) != 0)
         {
             return;
