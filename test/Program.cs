@@ -150,6 +150,37 @@ Check("synchronous delivery permits a reentrant publish", () =>
     Assert(context.Bus.Published.Contains("nested"), "nested publication never reached the bus");
 });
 
+Check("incoming notification flood faults and kills", () =>
+{
+    var context = new Context();
+    context.Bus.SlowTopic = "flood";
+    using var connection = Start("flood-incoming", context);
+    var deadline = Stopwatch.StartNew();
+    while (context.Faults.IsEmpty && deadline.Elapsed < TimeSpan.FromSeconds(20))
+    {
+        Thread.Sleep(20);
+    }
+
+    Assert(context.Faults.Any(reason => reason.Contains("队列溢出", StringComparison.Ordinal)),
+        context.Faults.IsEmpty ? "no fault" : string.Join(" | ", context.Faults));
+    Assert(ProcessOf(connection).WaitForExit(5000), "overflowing child survived");
+});
+
+Check("a child that never reads replies hits the bounded queues", () =>
+{
+    var context = new Context();
+    using var connection = Start("no-read-replies", context);
+    var deadline = Stopwatch.StartNew();
+    while (context.Faults.IsEmpty && deadline.Elapsed < TimeSpan.FromSeconds(20))
+    {
+        Thread.Sleep(20);
+    }
+
+    Assert(context.Faults.Any(reason => reason.Contains("队列溢出", StringComparison.Ordinal)),
+        context.Faults.IsEmpty ? "no fault" : string.Join(" | ", context.Faults));
+    Assert(ProcessOf(connection).WaitForExit(5000), "child survived reply backpressure");
+});
+
 static void Check(string name, Action test)
 {
     test();
@@ -206,6 +237,26 @@ static void Child(string mode)
         return;
     }
     if (mode == "orphan-child") { Thread.Sleep(3000); return; }
+    if (mode == "flood-incoming")
+    {
+        for (var i = 0; i < 6000; i++)
+        {
+            Send(new { jsonrpc = "2.0", method = "hosihikari/events/publish", @params = new { topic = "flood", json = "\"x\"" } });
+        }
+
+        Thread.Sleep(Timeout.Infinite);
+        return;
+    }
+    if (mode == "no-read-replies")
+    {
+        for (var i = 0; i < 20000; i++)
+        {
+            Send(new { jsonrpc = "2.0", id = i, method = "hosihikari/events/subscribe", @params = new { topic = "same" } });
+        }
+
+        Thread.Sleep(Timeout.Infinite);
+        return;
+    }
     if (mode == "string-id")
     {
         Send(new { jsonrpc = "2.0", id = "17", method = "hosihikari/events/publish", @params = new { topic = "object", json = new { amount = 5 } } });
