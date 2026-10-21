@@ -1,14 +1,14 @@
-# Hosihikari.PluginProvider.Rpc
+# Hosihikari.PluginLoader.Rpc
 
 [English](README.md) | [简体中文](README.zh_hans.md)
 
-> **例外一等 Provider。** RpcProvider 是官方 Provider，也是源码 AOT 为 IL 规则的唯一例外（ADR-0031）；插件无法编译为 IL 时才用它。
+> **进程外加载器。** RpcLoader 是官方加载器，也是源码编译为 IL 规则的唯一例外（ADR-0031）；插件无法编译为 IL 时才用它。
 
-星光框架的**例外一等跨进程桥**。插件以子进程运行，协议是行分隔的 JSON-RPC 2.0
+星光框架的**进程外加载器**。插件以子进程运行，协议是行分隔的 JSON-RPC 2.0
 over stdio；它只认清单里的命令与协议。卸载就是让进程真正退出。
 
 **它自己也是一个插件包**：`hosihikari-rpc`。装载时在 `OnLoad` 里把自己登记给框架，此后
-`provider: "rpc"` 的包才会被它接管 —— 所以进程外插件要在清单里声明依赖它。
+`loader: "rpc"` 的包才会被它接管 —— 所以进程外插件要在清单里声明依赖它。
 
 ## 模板
 
@@ -34,9 +34,9 @@ plugins/Hello/
         { "name": "hosihikari-rpc" }
       ],
       "extraInfo": {
-        "api": "2",
-        "format_version": "1",
-        "provider": "rpc",
+        "api_version": "2",
+        "manifest_version": "1",
+        "loader": "rpc",
         "command": "[\"node\", \"./hosihikari.mjs\", \"./main.mjs\"]"
       }
     }
@@ -46,7 +46,7 @@ plugins/Hello/
 ```
 
 `extraInfo.command` 是**编码成字符串的 JSON 数组**——父级的清单解析要求 `extraInfo` 的值是字符串。
-Provider 解码后把各项逐个放进参数表；不经 shell，工作目录是包目录。子进程的可执行文件由运维提供
+加载器解码后把各项逐个放进参数表；不经 shell，工作目录是包目录。子进程的可执行文件由运维提供
 （PATH 或绝对路径）。在 Endstone 下，CLI 会把子进程的 PATH 换成 Python 的 `sys.path`，可执行文件要写绝对路径。
 
 ## 插件怎么写
@@ -71,7 +71,7 @@ export default {
 
 `ctx` 提供 `name`、`dataDirectory`、`packageDirectory`、`config(key)`、`configObject`、
 `logInfo/logWarn/logError`、`writeData`、`publish`、`subscribe(topic, fn, { sync })`、
-`runLater/runEvery`。
+`scheduleOnce/schedulePeriodic`。
 
 ## 协议
 
@@ -95,12 +95,12 @@ export default {
 ## 跑一遍
 
 ```
-dotnet run --project host/Hosihikari.PluginProvider.Rpc.Host.csproj -c Release
+dotnet run --project host/Hosihikari.PluginLoader.Rpc.Host.csproj -c Release
 ```
 
-需要并列的 `Hosihikari.PluginManager`、`Hosihikari.Abstractions` 与 McMaster 的 fork checkout，以及 PATH 上的
+需要并列的 `Hosihikari.PluginManager`、契约仓检出（契约包 `Hosihikari.Plugin.Abstractions`）与 McMaster 的 fork checkout，以及 PATH 上的
 Node、`qjs`、Python（`python3`；Windows 上是 `python` 或 `py -3`）、JDK 21 与 `kotlinc`。它覆盖：
-Provider 由插件包登记；Node、QuickJS、Python、Java 与 Kotlin 绑定各自验证 hello 快照与配置分层、
+加载器由插件包登记；Node、QuickJS、Python、Java 与 Kotlin 绑定各自验证 hello 快照与配置分层、
 启用/停用/卸载、默认异步事件、同步 ack、定时器与插件→宿主发布；Java 还覆盖拒绝启用/停用与进程死亡
 故障卸载，Kotlin 验证同一份 JVM 绑定在 Kotlin 下的互操作。
 
@@ -130,7 +130,7 @@ Python 这一份把 `hosihikari.py` 拷到入口旁边；插件定义模块级�
 
 `ctx` 提供 `name`、`data_directory`、`package_directory`、`config(key)`、`config_object`、
 `log_info/log_warn/log_error`、`write_data(file, text)`、`publish(topic, json)`、
-`subscribe(topic, fn, sync=False)`、`run_later(seconds, fn)`、`run_every(seconds, fn)`。
+`subscribe(topic, fn, sync=False)`、`schedule_once(seconds, fn)`、`schedule_periodic(seconds, fn)`。
 `print` 走 stderr，stdout 只留给协议。
 
 JVM 绑定在 `bindings/java/hosihikari`，Java 与 Kotlin 插件共用同一份。插件实现
@@ -138,7 +138,7 @@ JVM 绑定在 `bindings/java/hosihikari`，Java 与 Kotlin 插件共用同一份
 `HookResult.allow()` / `HookResult.refuse(reason)`；`Context` 提供 `name()`、`dataDirectory()`、
 `packageDirectory()`、`config(key)`、`configObject()`、`logInfo/logWarn/logError`、
 `writeData(file, text)`、`publish(topic, json)`、`subscribe(topic, Consumer<String>[, sync])`、
-`runLater(millis, Runnable)`、`runEvery(millis, Runnable)`。Java 插件与绑定一起编译：
+`scheduleOnce(millis, Runnable)`、`schedulePeriodic(millis, Runnable)`。Java 插件与绑定一起编译：
 
 ```json
 "command": "[\"java\", \"-cp\", \"./classes\", \"hosihikari.Binding\", \"hello.HelloPlugin\"]"
@@ -157,7 +157,7 @@ JVM 绑定需要 JDK 21；Kotlin 插件另需构建期的 `kotlinc`，运行时�
 进程监督与订阅顺序回归不需要 Node、QuickJS、Python、JDK 或 Kotlin，也可以单独运行：
 
 ```
-dotnet run --project test/Hosihikari.PluginProvider.Rpc.Regression.csproj -c Release
+dotnet run --project test/Hosihikari.PluginLoader.Rpc.Regression.csproj -c Release
 ```
 
 此检查直接编译生产连接源码及并列的 Abstractions 源码，覆盖阻塞写入、请求共用截止时间、
@@ -169,9 +169,9 @@ dotnet run --project test/Hosihikari.PluginProvider.Rpc.Regression.csproj -c Rel
 pwsh ./pack.ps1 -Version 0.2.4 -OutputRoot artifacts
 ```
 
-它把 Provider DLL、私有依赖、清单与 `bindings/` 装进 `hosihikari-rpc/`，共享层不随包走；打 `v*` 标签时 CI 把 zip 附到 release（ADR-0036）。
+它把加载器 DLL、私有依赖、清单与 `bindings/` 装进 `hosihikari-rpc/`，共享层不随包走；打 `v*` 标签时 CI 把 zip 附到 release（ADR-0036）。
 
-打包脚本调用核心打包器（`Hosihikari.PluginManager/tools/Pack`），共享层清单由核心统一给出；需要并列检出核心仓，或设置 `HOSIHIKARI_PLUGINMANAGER`。
+打包脚本调用插件管理者打包器（`Hosihikari.PluginManager/tools/Pack`），共享层清单由插件管理者统一给出；需要并列检出插件管理者仓，或设置 `HOSIHIKARI_PLUGINMANAGER`。
 
 发布后：`lip install github.com/HosihikariFramework/RpcProvider`（先按载体装 Shim）。
 

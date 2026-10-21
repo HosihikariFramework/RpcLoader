@@ -133,7 +133,7 @@ class Context:
 
         return unsubscribe
 
-    def run_later(self, seconds, callback):
+    def schedule_once(self, seconds, callback):
         def run():
             try:
                 callback()
@@ -145,7 +145,7 @@ class Context:
         timer.start()
         return timer
 
-    def run_every(self, seconds, callback):
+    def schedule_periodic(self, seconds, callback):
         return _Repeating(seconds, callback)
 
     def _deliver(self, topic, json):

@@ -1,15 +1,15 @@
-# Hosihikari.PluginProvider.Rpc
+# Hosihikari.PluginLoader.Rpc
 
 [English](README.md) | [简体中文](README.zh_hans.md)
 
-> **Exception first-class provider.** RpcProvider is an official provider: the one exception to the source-AOT-to-IL rule (ADR-0031). Use it when a plugin cannot be compiled to IL.
+> **Out-of-process loader.** RpcLoader is an official loader and the one exception to the source-AOT-to-IL rule (ADR-0031). Use it when a plugin cannot be compiled to IL.
 
-The **exception first-class cross-process bridge** of the Hosihikari framework. Plugins run as child processes
+The **out-of-process loader** of the Hosihikari framework. Plugins run as child processes
 and speak newline-delimited JSON-RPC 2.0 over stdio; the bridge reads only the command in the
 manifest and the protocol. Unload means the process really exits.
 
 **It is a plugin package itself**, named `hosihikari-rpc`. When it loads, it registers itself with
-the framework from `OnLoad`; packages with `provider: "rpc"` are only handled after that — which is
+the framework from `OnLoad`; packages with `loader: "rpc"` are only handled after that — which is
 why bridge plugins declare a dependency on it.
 
 ## Templates
@@ -36,9 +36,9 @@ plugins/Hello/
         { "name": "hosihikari-rpc" }
       ],
       "extraInfo": {
-        "api": "2",
-        "format_version": "1",
-        "provider": "rpc",
+        "api_version": "2",
+        "manifest_version": "1",
+        "loader": "rpc",
         "command": "[\"node\", \"./hosihikari.mjs\", \"./main.mjs\"]"
       }
     }
@@ -48,7 +48,7 @@ plugins/Hello/
 ```
 
 `extraInfo.command` is a non-empty JSON array encoded as a string — the parent's manifest parser
-requires `extraInfo` values to be strings. The Provider decodes it and passes the items into the
+requires `extraInfo` values to be strings. The loader decodes it and passes the items into the
 argument list one by one; there is no shell, and the working directory is the package directory. The
 runtime executable is supplied by the operator (PATH or an absolute path). Under Endstone, the CLI
 sets the child's PATH to Python's `sys.path`, so name the runtime by absolute path there.
@@ -75,7 +75,7 @@ export default {
 
 `ctx` exposes `name`, `dataDirectory`, `packageDirectory`, `config(key)`, `configObject`,
 `logInfo/logWarn/logError`, `writeData`, `publish`, `subscribe(topic, fn, { sync })`, and
-`runLater/runEvery`.
+`scheduleOnce/schedulePeriodic`.
 
 ## Protocol
 
@@ -108,12 +108,12 @@ data directory is read and written directly; timers belong to the child process.
 ## Running it
 
 ```
-dotnet run --project host/Hosihikari.PluginProvider.Rpc.Host.csproj -c Release
+dotnet run --project host/Hosihikari.PluginLoader.Rpc.Host.csproj -c Release
 ```
 
-It needs sibling `Hosihikari.PluginManager`, `Hosihikari.Abstractions` and McMaster fork checkouts,
+It needs sibling `Hosihikari.PluginManager`, the contract checkout (package `Hosihikari.Plugin.Abstractions`) and McMaster fork checkouts,
 and Node, `qjs`, Python (`python3`; on Windows `python` or `py -3`), JDK 21 and `kotlinc` on PATH.
-It covers: the Provider is registered by a plugin package; the Node, QuickJS, Python, Java and
+It covers: the loader is registered by a plugin package; the Node, QuickJS, Python, Java and
 Kotlin bindings each verify the hello snapshot with layered configuration, enable/disable/unload
 hooks, asynchronous events by default, the sync ack, timers and publishing back to the host; Java
 also covers refused enable/disable and faulting out a process that dies outside a hook, and Kotlin
@@ -146,7 +146,7 @@ The Python binding copies `hosihikari.py` next to the entry; the plugin defines 
 
 `ctx` provides `name`, `data_directory`, `package_directory`, `config(key)`, `config_object`,
 `log_info/log_warn/log_error`, `write_data(file, text)`, `publish(topic, json)`,
-`subscribe(topic, fn, sync=False)`, `run_later(seconds, fn)` and `run_every(seconds, fn)`.
+`subscribe(topic, fn, sync=False)`, `schedule_once(seconds, fn)` and `schedule_periodic(seconds, fn)`.
 `print` goes to stderr; stdout is protocol only.
 
 The JVM binding lives in `bindings/java/hosihikari` and serves Java and Kotlin plugins. A plugin
@@ -154,7 +154,7 @@ implements `hosihikari.Plugin` (`onLoad` / `onEnable` / `onDisable` / `onUnload`
 `HookResult.allow()` / `HookResult.refuse(reason)`. `Context` provides `name()`, `dataDirectory()`,
 `packageDirectory()`, `config(key)`, `configObject()`, `logInfo/logWarn/logError`,
 `writeData(file, text)`, `publish(topic, json)`, `subscribe(topic, Consumer<String>[, sync])`,
-`runLater(millis, Runnable)` and `runEvery(millis, Runnable)`. Compile the Java plugin together
+`scheduleOnce(millis, Runnable)` and `schedulePeriodic(millis, Runnable)`. Compile the Java plugin together
 with the binding:
 
 ```json
@@ -177,7 +177,7 @@ The process supervision and subscription ordering regressions can also run witho
 Python, a JDK or Kotlin:
 
 ```
-dotnet run --project test/Hosihikari.PluginProvider.Rpc.Regression.csproj -c Release
+dotnet run --project test/Hosihikari.PluginLoader.Rpc.Regression.csproj -c Release
 ```
 
 This check links the production connection source and sibling Abstractions source. It covers blocked
@@ -190,7 +190,7 @@ and reentrant synchronous event publication. CI runs it alongside the binding as
 pwsh ./pack.ps1 -Version 0.2.4 -OutputRoot artifacts
 ```
 
-It assembles the provider DLL, its private dependencies, the manifest and `bindings/` into
+It assembles the loader DLL, its private dependencies, the manifest and `bindings/` into
 `hosihikari-rpc/`; the shared layer is not copied. Pushing a `v*` tag attaches the zip to the
 GitHub release (ADR-0036).
 

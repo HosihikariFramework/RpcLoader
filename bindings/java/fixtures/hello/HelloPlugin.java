@@ -20,9 +20,9 @@ public final class HelloPlugin implements Plugin {
         context.subscribe("sync", json -> write("sync.txt", "sync:" + json), true);
         context.subscribe("java-self", json -> write("self.txt", "self:" + json));
         context.subscribe("java-syncself", json -> write("syncself.txt", "syncself:" + json), true);
-        context.runLater(500, () -> context.publish("java-self", "\"java-publish\""));
-        context.runLater(700, () -> context.publish("java-syncself", "\"java-sync\""));
-        context.runEvery(200, () -> write("every.txt", Integer.toString(++ticks)));
+        context.scheduleOnce(500, () -> context.publish("java-self", "\"java-publish\""));
+        context.scheduleOnce(700, () -> context.publish("java-syncself", "\"java-sync\""));
+        context.schedulePeriodic(200, () -> write("every.txt", Integer.toString(++ticks)));
         context.logInfo("java hello loaded");
     }
 

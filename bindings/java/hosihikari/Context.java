@@ -141,11 +141,11 @@ public final class Context {
         }
     }
 
-    public ScheduledFuture<?> runLater(long milliseconds, Runnable work) {
+    public ScheduledFuture<?> scheduleOnce(long milliseconds, Runnable work) {
         return binding.schedule(work, milliseconds, 0);
     }
 
-    public ScheduledFuture<?> runEvery(long milliseconds, Runnable work) {
+    public ScheduledFuture<?> schedulePeriodic(long milliseconds, Runnable work) {
         return binding.schedule(work, milliseconds, milliseconds);
     }
 

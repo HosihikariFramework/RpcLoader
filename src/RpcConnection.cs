@@ -7,7 +7,7 @@ using Hosihikari;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
-namespace Hosihikari.PluginProvider.Rpc;
+namespace Hosihikari.PluginLoader.Rpc;
 
 /// <summary>
 /// 一个进程外插件的 JSON-RPC 连接与进程监督（ADR-0031）。

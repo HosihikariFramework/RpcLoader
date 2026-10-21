@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Hosihikari.PluginLoader.Rpc</RootNamespace>
+    <AssemblyName>Hosihikari.PluginLoader.Rpc</AssemblyName>
+    <!-- 它本身要作为一个插件包分发，包里的依赖必须跟着构建输出走。 -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <!-- 契约来自另一个仓，两种拿法二选一。 -->
+  <ItemGroup Condition="Exists('../../Hosihikari.Abstractions/src/Hosihikari.Plugin.Abstractions.csproj')">
+    <ProjectReference Include="../../Hosihikari.Abstractions/src/Hosihikari.Plugin.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="!Exists('../../Hosihikari.Abstractions/src/Hosihikari.Plugin.Abstractions.csproj')">
+    <PackageReference Include="Hosihikari.Plugin.Abstractions" Version="[0.7.1]" />
+  </ItemGroup>
+
+</Project>

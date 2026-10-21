@@ -16,8 +16,8 @@ interface RpcPluginContext {
     handler: (json: string | null) => void | Promise<void>,
     options?: { sync?: boolean },
   ): () => void;
-  runLater(milliseconds: number, callback: () => void): ReturnType<typeof setTimeout>;
-  runEvery(milliseconds: number, callback: () => void): ReturnType<typeof setTimeout>;
+  scheduleOnce(milliseconds: number, callback: () => void): ReturnType<typeof setTimeout>;
+  schedulePeriodic(milliseconds: number, callback: () => void): ReturnType<typeof setTimeout>;
 }
 
 type RpcHookResult = void | boolean | { allowed: boolean; reason?: string | null };

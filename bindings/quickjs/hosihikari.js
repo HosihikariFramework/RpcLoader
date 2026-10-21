@@ -17,8 +17,8 @@ import * as os from 'qjs:os';
  * @property {(file: string, text: string) => void} writeData
  * @property {(topic: string, json?: string | null) => Promise<*>} publish
  * @property {(topic: string, handler: (json: string | null) => void, options?: {sync?: boolean}) => () => void} subscribe
- * @property {(milliseconds: number, callback: () => void) => *} runLater
- * @property {(milliseconds: number, callback: () => void) => *} runEvery
+ * @property {(milliseconds: number, callback: () => void) => *} scheduleOnce
+ * @property {(milliseconds: number, callback: () => void) => *} schedulePeriodic
  */
 
 /**
@@ -122,8 +122,8 @@ function makeContext(params) {
         }
       };
     },
-    runLater: (ms, fn) => os.setTimeout(fn, ms),
-    runEvery: (ms, fn) => os.setInterval(fn, ms),
+    scheduleOnce: (ms, fn) => os.setTimeout(fn, ms),
+    schedulePeriodic: (ms, fn) => os.setInterval(fn, ms),
     clearLater: (id) => os.clearTimeout(id),
     clearEvery: (id) => os.clearInterval(id),
   };

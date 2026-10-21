@@ -75,8 +75,8 @@ function makeContext(params) {
         }
       };
     },
-    runLater: (ms, fn) => setTimeout(fn, ms),
-    runEvery: (ms, fn) => setInterval(fn, ms),
+    scheduleOnce: (ms, fn) => setTimeout(fn, ms),
+    schedulePeriodic: (ms, fn) => setInterval(fn, ms),
   };
 }
 

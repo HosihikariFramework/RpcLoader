@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text.Json;
 using Hosihikari;
-using Hosihikari.PluginManagement;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -25,7 +24,7 @@ var dataRoot = Path.Combine(stage, "data");
 var configRoot = Path.Combine(stage, "config", "hosihikari");
 Directory.CreateDirectory(configRoot);
 
-StageProviderPackage();
+StageLoaderPackage();
 StagePlugin("Hello", "hello.mjs");
 StageQuickPlugin("QuickHello", "hello.js");
 if (python is not null)
@@ -74,7 +73,7 @@ var services = collection.BuildServiceProvider();
 
 var reported = new List<string>();
 var removed = new ConcurrentBag<string>();
-var host = new PluginManagerHost(
+var host = new PluginManager(
     pluginsRoot,
     dataRoot,
     configRoot,
@@ -89,7 +88,7 @@ var host = new PluginManagerHost(
         removed.Add(name);
         Console.WriteLine($"[框架] 已移除 {name}");
     });
-host.AddProvider(new AssemblyPluginProvider());
+host.RegisterLoader(new AssemblyPluginLoader());
 
 Console.WriteLine("=== 加载 ===");
 host.LoadAll();
@@ -99,7 +98,7 @@ var checks = new List<(string Name, bool Passed, string Detail)>();
 var helloData = Path.Combine(dataRoot, "Hello");
 
 checks.Add((
-    "RPC Provider 由插件包登记，rpc 包被它接管",
+    "RPC Loader 由插件包登记，rpc 包被它接管",
     host.LoadedNames.Contains("hosihikari-rpc") && host.LoadedNames.Contains("Hello"),
     string.Join(", ", host.LoadedNames)));
 
@@ -296,7 +295,7 @@ else
         everyText = Read(javaData, "every.txt");
     }
 
-    checks.Add(("Java 绑定：runEvery 周期回调",
+    checks.Add(("Java 绑定：schedulePeriodic 周期回调",
         int.TryParse(everyText, out var javaTicks) && javaTicks >= 2, everyText));
 
     var javaDisabled = host.Disable("JavaHello");
@@ -391,7 +390,7 @@ checks.Add(("允许之后能真正卸掉",
     refuseUnloadAfter.Released && !host.LoadedNames.Contains("Refuse"),
     refuseUnloadAfter.Error ?? "已回收"));
 
-// 进程在钩子之外死亡：Provider 报告故障，宿主卸载并通知载体（ADR-0030）。
+// 进程在钩子之外死亡：Loader 报告故障，宿主卸载并通知载体（ADR-0030）。
 var crashLoaded = host.Load(Path.Combine(stage, "parented", "Crash"));
 Thread.Sleep(400);
 checks.Add(("进程死亡走故障卸载并通知",
@@ -421,7 +420,7 @@ string Read(string directory, string file)
     return File.Exists(path) ? File.ReadAllText(path) : "（没写出来）";
 }
 
-void StageProviderPackage()
+void StageLoaderPackage()
 {
     var package = Path.Combine(pluginsRoot, "hosihikari-rpc");
     Directory.CreateDirectory(package);
@@ -429,18 +428,18 @@ void StageProviderPackage()
     File.WriteAllText(Path.Combine(package, "manifest.json"), """
         {
           "name": "hosihikari-rpc",
-          "entry": "Hosihikari.PluginProvider.Rpc.dll",
+          "entry": "Hosihikari.PluginLoader.Rpc.dll",
           "type": "hosihikari",
           "version": "0.1.0",
           "dependencies": [ { "name": "hosihikari" } ],
-          "extraInfo": { "api": "2", "format_version": "1", "provider": "assembly" }
+          "extraInfo": { "api_version": "2", "manifest_version": "1", "loader": "assembly" }
         }
         """);
 
     var output = Path.Combine(repoRoot, "src", "bin", ConfigurationName(), "net10.0");
     foreach (var file in Directory.EnumerateFiles(output, "*.dll"))
     {
-        if (Path.GetFileName(file) is "Hosihikari.Abstractions.dll")
+        if (Path.GetFileName(file) is "Hosihikari.Plugin.Abstractions.dll")
         {
             continue;
         }
@@ -448,7 +447,7 @@ void StageProviderPackage()
         File.Copy(file, Path.Combine(package, Path.GetFileName(file)));
     }
 
-    var deps = Path.Combine(output, "Hosihikari.PluginProvider.Rpc.deps.json");
+    var deps = Path.Combine(output, "Hosihikari.PluginLoader.Rpc.deps.json");
     if (File.Exists(deps))
     {
         File.Copy(deps, Path.Combine(package, Path.GetFileName(deps)));
@@ -472,9 +471,9 @@ void StagePlugin(string name, string entry, bool parented = false)
             { "name": "hosihikari-rpc" }
           ],
           "extraInfo": {
-            "api": "2",
-            "format_version": "1",
-            "provider": "rpc",
+            "api_version": "2",
+            "manifest_version": "1",
+            "loader": "rpc",
             "command": "[\"node\",\"./hosihikari.mjs\",\"./{{entry}}\"]"
           }
         }
@@ -505,9 +504,9 @@ void StageQuickPlugin(string name, string entry, bool parented = false)
             { "name": "hosihikari-rpc" }
           ],
           "extraInfo": {
-            "api": "2",
-            "format_version": "1",
-            "provider": "rpc",
+            "api_version": "2",
+            "manifest_version": "1",
+            "loader": "rpc",
             "command": "[\"qjs\",\"./hosihikari.js\",\"./{{entry}}\"]"
           }
         }
@@ -541,9 +540,9 @@ void StagePythonPlugin(string name, string entry, bool parented = false)
         dependencies = new[] { new { name = "hosihikari" }, new { name = "hosihikari-rpc" } },
         extraInfo = new Dictionary<string, string>
         {
-            ["api"] = "2",
-            ["format_version"] = "1",
-            ["provider"] = "rpc",
+            ["api_version"] = "2",
+            ["manifest_version"] = "1",
+            ["loader"] = "rpc",
             ["command"] = JsonSerializer.Serialize(command),
         },
     });
@@ -684,9 +683,9 @@ void WritePluginManifest(string package, string name, string entry, string[] com
         dependencies = new[] { new { name = "hosihikari" }, new { name = "hosihikari-rpc" } },
         extraInfo = new Dictionary<string, string>
         {
-            ["api"] = "2",
-            ["format_version"] = "1",
-            ["provider"] = "rpc",
+            ["api_version"] = "2",
+            ["manifest_version"] = "1",
+            ["loader"] = "rpc",
             ["command"] = JsonSerializer.Serialize(command),
         },
     });
@@ -756,7 +755,7 @@ static string RepoRoot()
 {
     var directory = new DirectoryInfo(AppContext.BaseDirectory);
     while (directory is not null &&
-           !File.Exists(Path.Combine(directory.FullName, "src", "Hosihikari.PluginProvider.Rpc.csproj")))
+           !File.Exists(Path.Combine(directory.FullName, "src", "Hosihikari.PluginLoader.Rpc.csproj")))
     {
         directory = directory.Parent;
     }

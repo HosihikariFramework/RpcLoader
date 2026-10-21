@@ -14,7 +14,7 @@ jobs:
         with:
           path: provider
 
-      # 验证宿主借核心的 PluginManagerHost。它按 ../.. 找这个目录，所以位置要照着摆。
+      # 验证宿主借核心的 PluginManager。它按 ../.. 找这个目录，所以位置要照着摆。
       - name: 核心
         uses: actions/checkout@v7
         with:
@@ -69,11 +69,11 @@ jobs:
         env:
           HOSIHIKARI_REQUIRE_JAVA: '1'
           HOSIHIKARI_REQUIRE_KOTLIN: '1'
-        run: dotnet run --project host/Hosihikari.PluginProvider.Rpc.Host.csproj -c Release --nologo
+        run: dotnet run --project host/Hosihikari.PluginLoader.Rpc.Host.csproj -c Release --nologo
 
       - name: 进程监督与协议顺序回归
         working-directory: provider
-        run: dotnet run --project test/Hosihikari.PluginProvider.Rpc.Regression.csproj -c Release --nologo
+        run: dotnet run --project test/Hosihikari.PluginLoader.Rpc.Regression.csproj -c Release --nologo
 
   windows:
     name: Windows 进程与协议
@@ -123,8 +123,8 @@ jobs:
         working-directory: provider
         env:
           JAVA_TOOL_OPTIONS: '-Dfile.encoding=UTF-8'
-        run: dotnet run --project host/Hosihikari.PluginProvider.Rpc.Host.csproj -c Release --nologo
+        run: dotnet run --project host/Hosihikari.PluginLoader.Rpc.Host.csproj -c Release --nologo
 
       - name: 进程监督与协议顺序回归
         working-directory: provider
-        run: dotnet run --project test/Hosihikari.PluginProvider.Rpc.Regression.csproj -c Release --nologo
+        run: dotnet run --project test/Hosihikari.PluginLoader.Rpc.Regression.csproj -c Release --nologo

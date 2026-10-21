@@ -4,7 +4,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using Hosihikari;
-using Hosihikari.PluginProvider.Rpc;
+using Hosihikari.PluginLoader.Rpc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -715,8 +715,8 @@ sealed class Context : IPluginContext
     public IEventBus Events => Bus;
     public IScheduler Scheduler => throw new NotSupportedException();
     public IPluginServiceRegistry PluginServices => throw new NotSupportedException();
-    public IServiceProvider Services => throw new NotSupportedException();
-    public void RegisterProvider(IPluginProvider provider) => throw new NotSupportedException();
+    public IServiceProvider CarrierServices => throw new NotSupportedException();
+    public bool RegisterLoader(IPluginLoader loader) => throw new NotSupportedException();
     public ConcurrentQueue<string> Faults { get; } = new();
     public void ReportFault(string reason) => Faults.Enqueue(reason);
 }
