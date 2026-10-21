@@ -74,3 +74,46 @@ jobs:
       - name: 进程监督与协议顺序回归
         working-directory: provider
         run: dotnet run --project test/Hosihikari.PluginProvider.Rpc.Regression.csproj -c Release --nologo
+
+  windows:
+    name: Windows 进程与协议
+    runs-on: windows-latest
+    steps:
+      - name: 本仓
+        uses: actions/checkout@v7
+        with:
+          path: provider
+
+      - name: 核心
+        uses: actions/checkout@v7
+        with:
+          repository: HosihikariFramework/PluginManagement
+          path: Hosihikari.PluginManager
+
+      - name: 契约
+        uses: actions/checkout@v7
+        with:
+          repository: HosihikariFramework/Abstractions
+          path: Hosihikari.Abstractions
+
+      - name: McMaster fork
+        uses: actions/checkout@v7
+        with:
+          repository: HosihikariFramework/Hosihikari.McMaster.NETCore.Plugins
+          path: Hosihikari.McMaster.NETCore.Plugins
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.x'
+
+      - name: 跑断言
+        working-directory: provider
+        run: dotnet run --project host/Hosihikari.PluginProvider.Rpc.Host.csproj -c Release --nologo
+
+      - name: 进程监督与协议顺序回归
+        working-directory: provider
+        run: dotnet run --project test/Hosihikari.PluginProvider.Rpc.Regression.csproj -c Release --nologo
