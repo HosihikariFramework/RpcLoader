@@ -127,6 +127,30 @@ Check("string ids echo and structured payloads survive", () =>
     Assert(context.Bus.Messages.Any(message => message.Topic == "ack"), "string id was not echoed");
 });
 
+Check("synchronous reentry is bounded", () =>
+{
+    var context = new Context();
+    using var connection = Start("sync-reentry-flood", context);
+    var deadline = Stopwatch.StartNew();
+    while (context.Bus.Active == 0 && deadline.Elapsed < TimeSpan.FromSeconds(5))
+    {
+        Thread.Sleep(20);
+    }
+
+    Assert(context.Bus.Active > 0, "subscription never arrived");
+    _ = Task.Run(() => context.Bus.Publish(new ChannelMessage("gate", "{}")));
+
+    deadline.Restart();
+    while (context.Faults.IsEmpty && deadline.Elapsed < TimeSpan.FromSeconds(20))
+    {
+        Thread.Sleep(20);
+    }
+
+    Assert(context.Faults.Any(reason => reason.Contains("重入请求", StringComparison.Ordinal)),
+        context.Faults.IsEmpty ? "no fault" : string.Join(" | ", context.Faults));
+    Assert(ProcessOf(connection).WaitForExit(5000), "flooding child survived");
+});
+
 Check("an oversized line faults and kills", () =>
 {
     var context = new Context();
@@ -276,6 +300,30 @@ static void Child(string mode)
         return;
     }
     if (mode == "orphan-child") { Thread.Sleep(3000); return; }
+    if (mode == "sync-reentry-flood")
+    {
+        Send(new { jsonrpc = "2.0", id = 1, method = "hosihikari/events/subscribe", @params = new { topic = "gate", sync = true } });
+        if (Console.ReadLine() is null) return;
+        while (Console.ReadLine() is { } line)
+        {
+            using var document = JsonDocument.Parse(line);
+            var root = document.RootElement;
+            if (!root.TryGetProperty("method", out var method)
+                || method.GetString() != "hosihikari/events/deliver")
+            {
+                continue;
+            }
+
+            for (var i = 0; i < 20000; i++)
+            {
+                Send(new { jsonrpc = "2.0", id = 1000 + i, method = "hosihikari/events/subscribe", @params = new { topic = "same" } });
+            }
+
+            Thread.Sleep(Timeout.Infinite);
+            return;
+        }
+        return;
+    }
     if (mode == "oversized-line")
     {
         Console.WriteLine(new string('x', 4 * 1024 * 1024 + 1));

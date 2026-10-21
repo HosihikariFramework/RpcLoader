@@ -36,6 +36,7 @@ internal sealed class RpcConnection : IDisposable
     private readonly Dictionary<string, bool> _syncTopics = new(StringComparer.Ordinal);
     private const int IncomingCapacity = 4096;
     private const int MaxLineLength = 4 * 1024 * 1024;
+    private const int SyncReentryLimit = 1024;
     private readonly Channel<Incoming> _incoming = Channel.CreateBounded<Incoming>(
         new BoundedChannelOptions(IncomingCapacity)
         {
@@ -52,6 +53,7 @@ internal sealed class RpcConnection : IDisposable
     private volatile bool _hasExited;
     private int _faultReported;
     private int _syncDeliveryDepth;
+    private int _syncReentries;
 
     private RpcConnection(Process process, IPluginContext context)
     {
@@ -364,9 +366,29 @@ internal sealed class RpcConnection : IDisposable
                     // 普通通知按到达顺序走单消费者。同步投递期间只让带 id 的请求重入：
                     // 子进程可能先发一条嵌套请求，等宿主处理完才回投递应答，这一条不能排在
                     // 阻塞的消费者后面；通知仍排队，避免并发投递打乱同一子进程的先后。
-                    if (Volatile.Read(ref _syncDeliveryDepth) > 0 && requestId.ValueKind != JsonValueKind.Undefined)
+                    var reentrant = Volatile.Read(ref _syncDeliveryDepth) > 0
+                                    && requestId.ValueKind != JsonValueKind.Undefined;
+                    if (reentrant)
                     {
-                        _ = Task.Run(() => HandlePluginRequest(method, parameters, requestId));
+                        // 重入绕开了有界队列，这里单独设上限；超过说明子进程在同步投递里灌请求。
+                        if (Interlocked.Increment(ref _syncReentries) > SyncReentryLimit)
+                        {
+                            Fault($"同步投递期间的重入请求超过 {SyncReentryLimit} 条");
+                            Abort();
+                            break;
+                        }
+
+                        _ = Task.Run(() =>
+                        {
+                            try
+                            {
+                                HandlePluginRequest(method, parameters, requestId);
+                            }
+                            finally
+                            {
+                                Interlocked.Decrement(ref _syncReentries);
+                            }
+                        });
                     }
                     else if (!_incoming.Writer.TryWrite(new Incoming(method, parameters, requestId)))
                     {
