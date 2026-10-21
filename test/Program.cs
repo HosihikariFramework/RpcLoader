@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Reflection;
+using System.Text;
 using System.Text.Json;
 using Hosihikari;
 using Hosihikari.PluginProvider.Rpc;
@@ -166,6 +167,19 @@ Check("an oversized line faults and kills", () =>
     Assert(ProcessOf(connection).WaitForExit(5000), "child survived oversized line");
 });
 
+Check("malformed lines do not stop the read loop", () =>
+{
+    var context = new Context();
+    using var connection = Start("fuzz-lines", context);
+    var deadline = Stopwatch.StartNew();
+    while (!context.Bus.Published.Contains("fuzz-done") && deadline.Elapsed < TimeSpan.FromSeconds(5))
+    {
+        Thread.Sleep(20);
+    }
+
+    Assert(context.Bus.Published.Contains("fuzz-done"), string.Join(",", context.Bus.Published));
+});
+
 Check("parent exit is detected while stdout stays open", () =>
 {
     var context = new Context();
@@ -300,6 +314,30 @@ static void Child(string mode)
         return;
     }
     if (mode == "orphan-child") { Thread.Sleep(3000); return; }
+    if (mode == "fuzz-lines")
+    {
+        var random = new Random(424242);
+        string[] fragments =
+        [
+            "{", "}", "\"jsonrpc\":\"2.0\"", "\"id\":", "1", "\"method\":",
+            "\"hosihikari/log\"", "\"params\":", "null", "[]", "{}", "garbage",
+            "\"topic\":", "\"x\"", ",",
+        ];
+        for (var i = 0; i < 200; i++)
+        {
+            var builder = new StringBuilder();
+            for (var j = 0; j < random.Next(1, 12); j++)
+            {
+                builder.Append(fragments[random.Next(fragments.Length)]);
+            }
+
+            Console.WriteLine(builder.ToString());
+        }
+
+        Send(new { jsonrpc = "2.0", method = "hosihikari/events/publish", @params = new { topic = "fuzz-done", json = "\"ok\"" } });
+        Thread.Sleep(1000);
+        return;
+    }
     if (mode == "sync-reentry-flood")
     {
         Send(new { jsonrpc = "2.0", id = 1, method = "hosihikari/events/subscribe", @params = new { topic = "gate", sync = true } });

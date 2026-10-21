@@ -337,6 +337,13 @@ internal sealed class RpcConnection : IDisposable
                 using (document)
                 {
                     var root = document.RootElement;
+                    // 合法的 JSON 也可以是数组、字符串或 null；TryGetProperty 只接受对象。
+                    if (root.ValueKind != JsonValueKind.Object)
+                    {
+                        _context.Logger.LogWarning("{Name}: stdout 上的 JSON 根不是对象", _name);
+                        continue;
+                    }
+
                     if (root.TryGetProperty("id", out var idElement)
                         && root.TryGetProperty("result", out var result))
                     {
