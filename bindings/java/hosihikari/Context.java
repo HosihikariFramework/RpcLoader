@@ -24,6 +24,7 @@ public final class Context {
     private final Map<String, String> config = new LinkedHashMap<>();
     private final Map<String, List<Consumer<String>>> handlers = new HashMap<>();
     private final Set<String> subscribed = new HashSet<>();
+    private final Set<String> syncTopics = new HashSet<>();
 
     Context(Binding binding, Map<String, Object> params) {
         this.binding = binding;
@@ -100,9 +101,17 @@ public final class Context {
     public synchronized Runnable subscribe(String topic, Consumer<String> handler, boolean sync) {
         handlers.computeIfAbsent(topic, key -> new ArrayList<>()).add(handler);
         if (subscribed.add(topic)) {
+            if (sync) {
+                syncTopics.add(topic);
+            }
             Map<String, Object> params = new LinkedHashMap<>();
             params.put("topic", topic);
             params.put("sync", sync);
+            binding.notify("hosihikari/events/subscribe", params);
+        } else if (sync && syncTopics.add(topic)) {
+            Map<String, Object> params = new LinkedHashMap<>();
+            params.put("topic", topic);
+            params.put("sync", true);
             binding.notify("hosihikari/events/subscribe", params);
         }
         return () -> {
@@ -116,6 +125,7 @@ public final class Context {
                 }
                 handlers.remove(topic);
                 subscribed.remove(topic);
+                syncTopics.remove(topic);
                 binding.notify("hosihikari/events/unsubscribe", Map.of("topic", topic));
             }
         };

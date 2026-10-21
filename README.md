@@ -88,11 +88,14 @@ export default {
   treats a timeout as a fault.
 - **Deadlines**: waiting for the write gate, writing, and waiting for the response share one timeout.
   A timeout terminates the child to release blocked pipe writes; notifications and replies have a
-  five-second write timeout. Subscription changes follow their receive order.
+  five-second write timeout. Subscription changes follow their receive order. Synchronous-delivery
+  reentry uses a dedicated bounded queue, so subscription changes stay on the ordered queue.
 - **Logging**: stdout carries protocol only; stderr is text logging; structured levels go through
   `hosihikari/log`.
 - **Unload**: send `unload`, close stdin, wait 5 seconds, then kill the process tree. The release
-  verifier checks that the process has exited.
+  verifier checks that the process has exited. Dispose stops dispatching queued incoming work,
+  cancels the stdout/stderr reads, closes both streams and disposes the process, so a grandchild
+  that inherited the pipes does not pin the connection.
 
 ## Capability surface
 

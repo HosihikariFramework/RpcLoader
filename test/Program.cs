@@ -80,6 +80,73 @@ Check("subscription changes retain receive order", () =>
     Assert(context.Bus.Active == 0, $"{context.Bus.Active} subscriptions survived their unsubscribe");
 });
 
+Check("subscription changes keep order inside synchronous delivery", () =>
+{
+    var context = new Context();
+    using var connection = Start("sync-order", context);
+    var deadline = Stopwatch.StartNew();
+    while (context.Bus.Active == 0 && deadline.Elapsed < TimeSpan.FromSeconds(5))
+    {
+        Thread.Sleep(20);
+    }
+
+    Assert(context.Bus.Active == 1, $"initial subscriptions: {context.Bus.Active}");
+    context.Bus.Publish(new ChannelMessage("gate", "{}"));
+    deadline.Restart();
+    while (!context.Bus.Published.Contains("sync-order-done") && deadline.Elapsed < TimeSpan.FromSeconds(10))
+    {
+        Thread.Sleep(20);
+    }
+
+    Assert(context.Bus.Published.Contains("sync-order-done"), "child did not finish");
+    Assert(context.Bus.Active == 1, $"{context.Bus.Active} subscriptions survived");
+});
+
+Check("dispose discards queued incoming work", () =>
+{
+    var context = new Context();
+    context.Bus.BlockTopic = "blocked";
+    var connection = Start("dispose-queue", context);
+    try
+    {
+        Assert(context.Bus.Entered.Wait(TimeSpan.FromSeconds(5)), "first event never reached the bus");
+        Thread.Sleep(200);
+        connection.Dispose();
+        context.Bus.Release.Set();
+        Thread.Sleep(200);
+        Assert(!context.Bus.Published.Contains("after"), "queued event ran after Dispose");
+    }
+    finally
+    {
+        context.Bus.Release.Set();
+        connection.Dispose();
+    }
+});
+
+Check("dispose releases a connection whose stdout is held by a grandchild", () =>
+{
+    var context = new Context();
+    var connection = Start("orphan", context);
+    var deadline = Stopwatch.StartNew();
+    while (context.Faults.IsEmpty && deadline.Elapsed < TimeSpan.FromSeconds(5))
+    {
+        Thread.Sleep(20);
+    }
+
+    Assert(!context.Faults.IsEmpty, "parent exit was not reported");
+    var weak = new WeakReference(connection);
+    connection.Dispose();
+    connection = null!;
+    Thread.Sleep(500);
+    for (var i = 0; i < 10; i++)
+    {
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+    }
+
+    Assert(!weak.IsAlive, "connection is still rooted by inherited stdout");
+});
+
 Check("published notifications keep wire order", () =>
 {
     var context = new Context();
@@ -131,6 +198,7 @@ Check("string ids echo and structured payloads survive", () =>
 Check("synchronous reentry is bounded", () =>
 {
     var context = new Context();
+    context.Bus.HoldTopic = "flood";
     using var connection = Start("sync-reentry-flood", context);
     var deadline = Stopwatch.StartNew();
     while (context.Bus.Active == 0 && deadline.Elapsed < TimeSpan.FromSeconds(5))
@@ -147,6 +215,7 @@ Check("synchronous reentry is bounded", () =>
         Thread.Sleep(20);
     }
 
+    context.Bus.HoldRelease.Set();
     Assert(context.Faults.Any(reason => reason.Contains("重入请求", StringComparison.Ordinal)),
         context.Faults.IsEmpty ? "no fault" : string.Join(" | ", context.Faults));
     Assert(ProcessOf(connection).WaitForExit(5000), "flooding child survived");
@@ -352,13 +421,68 @@ static void Child(string mode)
                 continue;
             }
 
-            for (var i = 0; i < 20000; i++)
+            var flood = new StringBuilder();
+            for (var i = 0; i < 1100; i++)
             {
-                Send(new { jsonrpc = "2.0", id = 1000 + i, method = "hosihikari/events/subscribe", @params = new { topic = "same" } });
+                flood.Append(JsonSerializer.Serialize(new
+                {
+                    jsonrpc = "2.0",
+                    id = 1000 + i,
+                    method = "hosihikari/events/publish",
+                    @params = new { topic = "flood", json = "\"x\"" },
+                })).Append('\n');
             }
 
+            Console.Out.Write(flood);
+            Console.Out.Flush();
             Thread.Sleep(Timeout.Infinite);
             return;
+        }
+        return;
+    }
+    if (mode == "sync-order")
+    {
+        Send(new { jsonrpc = "2.0", id = 1, method = "hosihikari/events/subscribe", @params = new { topic = "gate", sync = true } });
+        if (Console.ReadLine() is null) return;
+        while (Console.ReadLine() is { } line)
+        {
+            using var document = JsonDocument.Parse(line);
+            var root = document.RootElement;
+            if (!root.TryGetProperty("method", out var method)
+                || method.GetString() != "hosihikari/events/deliver")
+            {
+                continue;
+            }
+
+            for (var i = 0; i < 100; i++)
+            {
+                Send(new { jsonrpc = "2.0", id = 1000 + i * 2, method = "hosihikari/events/subscribe", @params = new { topic = "pair" + i } });
+                Send(new { jsonrpc = "2.0", id = 1001 + i * 2, method = "hosihikari/events/unsubscribe", @params = new { topic = "pair" + i } });
+            }
+
+            var replies = 0;
+            while (replies < 200 && Console.ReadLine() is { } reply)
+            {
+                using var replyDocument = JsonDocument.Parse(reply);
+                if (replyDocument.RootElement.TryGetProperty("id", out _))
+                {
+                    replies++;
+                }
+            }
+
+            Send(new { jsonrpc = "2.0", id = root.GetProperty("id").GetInt64(), result = (object?)null });
+            Send(new { jsonrpc = "2.0", method = "hosihikari/events/publish", @params = new { topic = "sync-order-done", json = "\"ok\"" } });
+            Thread.Sleep(1000);
+            return;
+        }
+        return;
+    }
+    if (mode == "dispose-queue")
+    {
+        Send(new { jsonrpc = "2.0", method = "hosihikari/events/publish", @params = new { topic = "blocked", json = "\"first\"" } });
+        Send(new { jsonrpc = "2.0", method = "hosihikari/events/publish", @params = new { topic = "after", json = "\"second\"" } });
+        while (Console.ReadLine() is not null)
+        {
         }
         return;
     }
@@ -527,6 +651,12 @@ sealed class Bus : IEventBus
     public List<string> Published { get; } = [];
     public List<ChannelMessage> Messages { get; } = [];
     public string? SlowTopic { get; set; }
+    public int SlowMilliseconds { get; set; } = 100;
+    public string? HoldTopic { get; set; }
+    public ManualResetEventSlim HoldRelease { get; } = new(false);
+    public string? BlockTopic { get; set; }
+    public ManualResetEventSlim Entered { get; } = new(false);
+    public ManualResetEventSlim Release { get; } = new(false);
     public int Active { get { lock (_gate) return _handlers.Count; } }
     public IDisposable Subscribe<T>(Action<T> handler)
     {
@@ -540,7 +670,18 @@ sealed class Bus : IEventBus
         var channel = (ChannelMessage)(object)message!;
         if (channel.Topic == SlowTopic)
         {
-            Thread.Sleep(100);
+            Thread.Sleep(SlowMilliseconds);
+        }
+
+        if (channel.Topic == HoldTopic)
+        {
+            HoldRelease.Wait(TimeSpan.FromSeconds(10));
+        }
+
+        if (channel.Topic == BlockTopic)
+        {
+            Entered.Set();
+            Release.Wait(TimeSpan.FromSeconds(10));
         }
 
         Action<ChannelMessage>[] snapshot;

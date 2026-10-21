@@ -32,6 +32,7 @@ internal sealed class RpcConnection : IDisposable
     private readonly Dictionary<long, TaskCompletionSource<JsonElement>> _pending = [];
     private readonly object _pendingLock = new();
     private readonly SemaphoreSlim _writeLock = new(1, 1);
+    private readonly CancellationTokenSource _shutdown = new();
     private readonly Dictionary<string, IDisposable> _subscriptions = new(StringComparer.Ordinal);
     private readonly Dictionary<string, bool> _syncTopics = new(StringComparer.Ordinal);
     private const int IncomingCapacity = 4096;
@@ -39,6 +40,13 @@ internal sealed class RpcConnection : IDisposable
     private const int SyncReentryLimit = 1024;
     private readonly Channel<Incoming> _incoming = Channel.CreateBounded<Incoming>(
         new BoundedChannelOptions(IncomingCapacity)
+        {
+            SingleReader = true,
+            SingleWriter = true,
+            FullMode = BoundedChannelFullMode.Wait,
+        });
+    private readonly Channel<Incoming> _reentries = Channel.CreateBounded<Incoming>(
+        new BoundedChannelOptions(SyncReentryLimit)
         {
             SingleReader = true,
             SingleWriter = true,
@@ -53,7 +61,6 @@ internal sealed class RpcConnection : IDisposable
     private volatile bool _hasExited;
     private int _faultReported;
     private int _syncDeliveryDepth;
-    private int _syncReentries;
 
     private RpcConnection(Process process, IPluginContext context)
     {
@@ -72,6 +79,7 @@ internal sealed class RpcConnection : IDisposable
         new Thread(ReadLoop) { IsBackground = true, Name = $"hosihikari-rpc:{_name}" }.Start();
         new Thread(ErrorLoop) { IsBackground = true, Name = $"hosihikari-rpc-err:{_name}" }.Start();
         new Thread(ProcessIncoming) { IsBackground = true, Name = $"hosihikari-rpc-in:{_name}" }.Start();
+        new Thread(ReentryLoop) { IsBackground = true, Name = $"hosihikari-rpc-reentry:{_name}" }.Start();
         new Thread(ReplyLoop) { IsBackground = true, Name = $"hosihikari-rpc-out:{_name}" }.Start();
     }
 
@@ -112,6 +120,31 @@ internal sealed class RpcConnection : IDisposable
         {
             while (_incoming.Reader.TryRead(out var message))
             {
+                // Dispose 之后不再开始新的派发；已经在飞的 handler 可以按策略结束。
+                if (_disposing)
+                {
+                    break;
+                }
+
+                HandlePluginRequest(message.Method, message.Parameters, message.RequestId);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 同步投递期间的重入请求走独立线程，不占线程池；订阅变更仍留在有序队列。
+    /// </summary>
+    private void ReentryLoop()
+    {
+        while (_reentries.Reader.WaitToReadAsync().AsTask().GetAwaiter().GetResult())
+        {
+            while (_reentries.Reader.TryRead(out var message))
+            {
+                if (_disposing)
+                {
+                    break;
+                }
+
                 HandlePluginRequest(message.Method, message.Parameters, message.RequestId);
             }
         }
@@ -304,7 +337,7 @@ internal sealed class RpcConnection : IDisposable
         try
         {
             // StreamReader.ReadLine 会先把整行分配出来，4 MiB 的上限检查就晚了。
-            var lines = new BoundedLineReader(_process.StandardOutput, MaxLineLength);
+            var lines = new BoundedLineReader(_process.StandardOutput, MaxLineLength, _shutdown.Token);
             while (true)
             {
                 var line = lines.ReadLine(out var overflow);
@@ -373,29 +406,21 @@ internal sealed class RpcConnection : IDisposable
                     // 普通通知按到达顺序走单消费者。同步投递期间只让带 id 的请求重入：
                     // 子进程可能先发一条嵌套请求，等宿主处理完才回投递应答，这一条不能排在
                     // 阻塞的消费者后面；通知仍排队，避免并发投递打乱同一子进程的先后。
+                    // 订阅变更不解除 sync 等待，必须留在有序队列里；只有 publish 等请求重入。
+                    var subscriptionChange = method is "hosihikari/events/subscribe"
+                        or "hosihikari/events/unsubscribe";
                     var reentrant = Volatile.Read(ref _syncDeliveryDepth) > 0
-                                    && requestId.ValueKind != JsonValueKind.Undefined;
+                                    && requestId.ValueKind != JsonValueKind.Undefined
+                                    && !subscriptionChange;
                     if (reentrant)
                     {
-                        // 重入绕开了有界队列，这里单独设上限；超过说明子进程在同步投递里灌请求。
-                        if (Interlocked.Increment(ref _syncReentries) > SyncReentryLimit)
+                        // 独立的有界重入队列；满了说明子进程在同步投递里灌请求。
+                        if (!_reentries.Writer.TryWrite(new Incoming(method, parameters, requestId)))
                         {
                             Fault($"同步投递期间的重入请求超过 {SyncReentryLimit} 条");
                             Abort();
                             break;
                         }
-
-                        _ = Task.Run(() =>
-                        {
-                            try
-                            {
-                                HandlePluginRequest(method, parameters, requestId);
-                            }
-                            finally
-                            {
-                                Interlocked.Decrement(ref _syncReentries);
-                            }
-                        });
                     }
                     else if (!_incoming.Writer.TryWrite(new Incoming(method, parameters, requestId)))
                     {
@@ -426,7 +451,10 @@ internal sealed class RpcConnection : IDisposable
     }
 
     /// <summary>逐块读取；单行超过上限时立刻停下，不会先分配整行。</summary>
-    private sealed class BoundedLineReader(StreamReader reader, int maxLength)
+    private sealed class BoundedLineReader(
+        StreamReader reader,
+        int maxLength,
+        CancellationToken cancellation)
     {
         private readonly char[] _buffer = new char[4096];
         private int _start;
@@ -440,7 +468,10 @@ internal sealed class RpcConnection : IDisposable
             {
                 if (_start == _end)
                 {
-                    _end = reader.Read(_buffer, 0, _buffer.Length);
+                    _end = reader.ReadAsync(_buffer.AsMemory(), cancellation)
+                        .AsTask()
+                        .GetAwaiter()
+                        .GetResult();
                     _start = 0;
                     if (_end == 0)
                     {
@@ -699,7 +730,11 @@ internal sealed class RpcConnection : IDisposable
         {
             while (true)
             {
-                var line = _process.StandardError.ReadLine();
+                var line = _process.StandardError
+                    .ReadLineAsync(_shutdown.Token)
+                    .AsTask()
+                    .GetAwaiter()
+                    .GetResult();
                 if (line is null)
                 {
                     break;
@@ -765,7 +800,9 @@ internal sealed class RpcConnection : IDisposable
             return;
         }
         _disposing = true;
+        _shutdown.Cancel();
         _incoming.Writer.TryComplete();
+        _reentries.Writer.TryComplete();
         _replies.CompleteAdding();
 
         try
@@ -823,6 +860,31 @@ internal sealed class RpcConnection : IDisposable
             }
 
             FailPending(new ObjectDisposedException(nameof(RpcConnection)));
+
+            // 读线程已经收到取消信号；关闭读端并释放 Process，避免继承管道的孙进程把连接钉住。
+            try
+            {
+                _process.StandardOutput.Dispose();
+            }
+            catch (Exception ex) when (ex is IOException or ObjectDisposedException or InvalidOperationException)
+            {
+            }
+
+            try
+            {
+                _process.StandardError.Dispose();
+            }
+            catch (Exception ex) when (ex is IOException or ObjectDisposedException or InvalidOperationException)
+            {
+            }
+
+            try
+            {
+                _process.Dispose();
+            }
+            catch (InvalidOperationException)
+            {
+            }
         }
     }
 }

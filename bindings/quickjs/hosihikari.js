@@ -53,6 +53,7 @@ let nextId = 1;
 const pending = new Map();
 const REQUEST_TIMEOUT_MS = 30000;
 const handlers = new Map();
+const syncTopics = new Set();
 let plugin = null;
 let ctx = null;
 
@@ -95,9 +96,14 @@ function makeContext(params) {
     writeData: (file, text) => writeData(params.dataDirectory, file, text),
     publish: (topic, json) => request('hosihikari/events/publish', { topic, json }),
     subscribe: (topic, handler, options = {}) => {
+      const sync = options.sync === true;
       if (!handlers.has(topic)) {
         handlers.set(topic, []);
-        request('hosihikari/events/subscribe', { topic, sync: options.sync === true }).catch(() => {});
+        if (sync) syncTopics.add(topic);
+        request('hosihikari/events/subscribe', { topic, sync }).catch(() => {});
+      } else if (sync && !syncTopics.has(topic)) {
+        syncTopics.add(topic);
+        request('hosihikari/events/subscribe', { topic, sync: true }).catch(() => {});
       }
       handlers.get(topic).push(handler);
       return () => {
@@ -111,6 +117,7 @@ function makeContext(params) {
         }
         if (list.length === 0) {
           handlers.delete(topic);
+          syncTopics.delete(topic);
           request('hosihikari/events/unsubscribe', { topic }).catch(() => {});
         }
       };
@@ -162,7 +169,7 @@ async function handle(message) {
     case 'hosihikari/events/deliver': {
       const topic = message.params?.topic;
       const json = message.params?.json ?? null;
-      for (const handler of handlers.get(topic) ?? []) {
+      for (const handler of [...(handlers.get(topic) ?? [])]) {
         await handler(json);
       }
       result = null;

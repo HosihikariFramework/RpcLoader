@@ -44,6 +44,7 @@ if (javaStaged)
 var kotlinTools = javaTools && kotlinc is not null;
 var kotlinStaged = kotlinTools
     && StageKotlinPlugin("KotlinHello", "hello.HelloPlugin", "hello/HelloPlugin.kt");
+StagePlugin("Mixed", "mixed.mjs");
 StagePlugin("Refuse", "refuse.mjs", parented: true);
 StagePlugin("Crash", "crash.mjs", parented: true);
 StageQuickPlugin("QuickCrash", "crash.js", parented: true);
@@ -117,6 +118,17 @@ checks.Add(("默认异步事件到达进程",
 host.Events.Publish(new ChannelMessage("sync", "\"sync-host\""));
 checks.Add(("同步订阅等到 ack",
     Read(helloData, "sync.txt") == "sync:\"sync-host\"", Read(helloData, "sync.txt")));
+
+var mixedData = Path.Combine(dataRoot, "Mixed");
+Thread.Sleep(100);
+host.Events.Publish(new ChannelMessage("mixed", "\"m\""));
+checks.Add(("Node 绑定：后加的同步订阅升级主题",
+    Read(mixedData, "mixed-sync.txt") == "sync", Read(mixedData, "mixed-sync.txt")));
+host.Events.Publish(new ChannelMessage("self", "\"s\""));
+Thread.Sleep(300);
+checks.Add(("Node 绑定：自退订不跳过后续 handler",
+    Read(mixedData, "self-a.txt") == "a" && Read(mixedData, "self-b.txt") == "b",
+    $"a={Read(mixedData, "self-a.txt")} b={Read(mixedData, "self-b.txt")}"));
 
 var disabled = host.Disable("Hello");
 var disabledText = Read(helloData, "disabled.txt");

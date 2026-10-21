@@ -112,6 +112,9 @@ class Context:
             if first:
                 self._subscribed[topic] = bool(sync)
                 _notify("hosihikari/events/subscribe", {"topic": topic, "sync": bool(sync)})
+            elif sync and not self._subscribed[topic]:
+                self._subscribed[topic] = True
+                _notify("hosihikari/events/subscribe", {"topic": topic, "sync": True})
 
         def unsubscribe():
             with self._lock:
