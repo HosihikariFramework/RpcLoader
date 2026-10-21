@@ -4,6 +4,31 @@
 import * as std from 'qjs:std';
 import * as os from 'qjs:os';
 
+/**
+ * @typedef {Object} Context
+ * @property {string} name
+ * @property {string} dataDirectory
+ * @property {string} packageDirectory
+ * @property {(key: string) => string | null} config
+ * @property {Object<string, string>} configObject
+ * @property {(message: *) => void} logInfo
+ * @property {(message: *) => void} logWarn
+ * @property {(message: *) => void} logError
+ * @property {(file: string, text: string) => void} writeData
+ * @property {(topic: string, json?: string | null) => Promise<*>} publish
+ * @property {(topic: string, handler: (json: string | null) => void, options?: {sync?: boolean}) => () => void} subscribe
+ * @property {(milliseconds: number, callback: () => void) => *} runLater
+ * @property {(milliseconds: number, callback: () => void) => *} runEvery
+ */
+
+/**
+ * @typedef {Object} Plugin
+ * @property {(ctx: Context) => void | Promise<void>} [onLoad]
+ * @property {(ctx: Context) => *} [onEnable]
+ * @property {(ctx: Context) => *} [onDisable]
+ * @property {(ctx: Context) => void | Promise<void>} [onUnload]
+ */
+
 const entry = scriptArgs[1];
 if (!entry) {
   std.err.puts('usage: qjs hosihikari.js <entry.js>\n');
@@ -26,6 +51,7 @@ const notify = (method, params) => send({ jsonrpc: '2.0', method, params });
 
 let nextId = 1;
 const pending = new Map();
+const REQUEST_TIMEOUT_MS = 30000;
 const handlers = new Map();
 let plugin = null;
 let ctx = null;
@@ -33,7 +59,13 @@ let ctx = null;
 function request(method, params) {
   const id = nextId++;
   send({ jsonrpc: '2.0', id, method, params });
-  return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+  return new Promise((resolve, reject) => {
+    const timer = os.setTimeout(() => {
+      pending.delete(id);
+      reject(new Error(method + ' timed out after ' + REQUEST_TIMEOUT_MS + 'ms'));
+    }, REQUEST_TIMEOUT_MS);
+    pending.set(id, { resolve, reject, timer });
+  });
 }
 
 function join(dir, file) {
@@ -189,6 +221,7 @@ worker.onmessage = (event) => {
     return;
   }
   pending.delete(message.id);
+  os.clearTimeout(completion.timer);
   if (message.error) {
     completion.reject(new Error(message.error.message ?? 'rpc error'));
   } else {

@@ -19,6 +19,7 @@ const notify = (method, params) => send({ jsonrpc: '2.0', method, params });
 
 let nextId = 1;
 const pending = new Map();
+const REQUEST_TIMEOUT_MS = 30000;
 const handlers = new Map();
 let plugin = null;
 let ctx = null;
@@ -26,7 +27,13 @@ let ctx = null;
 function request(method, params) {
   const id = nextId++;
   send({ jsonrpc: '2.0', id, method, params });
-  return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pending.delete(id);
+      reject(new Error(`${method} timed out after ${REQUEST_TIMEOUT_MS}ms`));
+    }, REQUEST_TIMEOUT_MS);
+    pending.set(id, { resolve, reject, timer });
+  });
 }
 
 function makeContext(params) {
@@ -151,6 +158,7 @@ reader.on('line', (line) => {
   const completion = pending.get(message.id);
   if (!completion) return;
   pending.delete(message.id);
+  clearTimeout(completion.timer);
   if (message.error) {
     completion.reject(new Error(message.error.message ?? 'rpc error'));
   } else {
