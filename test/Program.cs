@@ -167,11 +167,12 @@ Check("duplicate subscribe upgrades the topic to sync", () =>
     var context = new Context();
     using var connection = Start("dupsync", context);
     var deadline = Stopwatch.StartNew();
-    while (context.Bus.Active == 0 && deadline.Elapsed < TimeSpan.FromSeconds(5))
+    while (!context.Bus.Published.Contains("ready") && deadline.Elapsed < TimeSpan.FromSeconds(5))
     {
         Thread.Sleep(20);
     }
 
+    Assert(context.Bus.Published.Contains("ready"), "subscribe upgrade was not acknowledged");
     var watch = Stopwatch.StartNew();
     context.Bus.Publish(new ChannelMessage("dup", "{}"));
     Assert(watch.Elapsed >= TimeSpan.FromMilliseconds(200),
@@ -270,6 +271,25 @@ Check("synchronous delivery permits a reentrant publish", () =>
     var result = Request(connection, "", 3000);
     Assert(result.GetString() == "done", "nested publication deadlocked");
     Assert(context.Bus.Published.Contains("nested"), "nested publication never reached the bus");
+});
+
+Check("nested synchronous delivery does not deadlock", () =>
+{
+    var context = new Context();
+    using var connection = Start("nested-sync", context);
+    var deadline = Stopwatch.StartNew();
+    while (context.Bus.Active < 3 && deadline.Elapsed < TimeSpan.FromSeconds(5))
+    {
+        Thread.Sleep(20);
+    }
+
+    Assert(context.Bus.Active >= 3, $"subscriptions: {context.Bus.Active}");
+    var watch = Stopwatch.StartNew();
+    context.Bus.Publish(new ChannelMessage("gate", "{}"));
+    Assert(watch.Elapsed < TimeSpan.FromSeconds(3), $"gate publish took {watch.ElapsedMilliseconds}ms");
+    Assert(context.Bus.Published.Contains("inner") && context.Bus.Published.Contains("leaf"),
+        string.Join(",", context.Bus.Published));
+    Assert(context.Faults.IsEmpty, string.Join(" | ", context.Faults));
 });
 
 Check("notifications keep order during synchronous delivery", () =>
@@ -486,6 +506,61 @@ static void Child(string mode)
         }
         return;
     }
+    if (mode == "nested-sync")
+    {
+        Send(new { jsonrpc = "2.0", id = 1, method = "hosihikari/events/subscribe", @params = new { topic = "gate", sync = true } });
+        Send(new { jsonrpc = "2.0", id = 2, method = "hosihikari/events/subscribe", @params = new { topic = "inner", sync = true } });
+        Send(new { jsonrpc = "2.0", id = 3, method = "hosihikari/events/subscribe", @params = new { topic = "leaf" } });
+        long gateDeliver = 0;
+        long innerDeliver = 0;
+        while (Console.ReadLine() is { } line)
+        {
+            using var document = JsonDocument.Parse(line);
+            var root = document.RootElement;
+            if (root.TryGetProperty("method", out var methodElement))
+            {
+                if (methodElement.GetString() != "hosihikari/events/deliver")
+                {
+                    continue;
+                }
+
+                var topic = root.GetProperty("params").GetProperty("topic").GetString();
+                var id = root.TryGetProperty("id", out var idElement) ? idElement.GetInt64() : 0;
+                if (topic == "gate")
+                {
+                    gateDeliver = id;
+                    Send(new { jsonrpc = "2.0", id = 10, method = "hosihikari/events/publish", @params = new { topic = "inner", json = "\"i\"" } });
+                }
+                else if (topic == "inner")
+                {
+                    innerDeliver = id;
+                    Send(new { jsonrpc = "2.0", id = 11, method = "hosihikari/events/publish", @params = new { topic = "leaf", json = "\"l\"" } });
+                }
+                else if (id != 0)
+                {
+                    Send(new { jsonrpc = "2.0", id, result = (object?)null });
+                }
+
+                continue;
+            }
+
+            if (!root.TryGetProperty("id", out var responseId))
+            {
+                continue;
+            }
+
+            var response = responseId.GetInt64();
+            if (response == 11)
+            {
+                Send(new { jsonrpc = "2.0", id = innerDeliver, result = (object?)null });
+            }
+            else if (response == 10)
+            {
+                Send(new { jsonrpc = "2.0", id = gateDeliver, result = (object?)null });
+            }
+        }
+        return;
+    }
     if (mode == "oversized-line")
     {
         Console.WriteLine(new string('x', 4 * 1024 * 1024 + 1));
@@ -560,6 +635,7 @@ static void Child(string mode)
         Send(new { jsonrpc = "2.0", id = 1, method = "hosihikari/events/subscribe", @params = new { topic = "dup", sync = false } });
         Send(new { jsonrpc = "2.0", id = 2, method = "hosihikari/events/subscribe", @params = new { topic = "dup", sync = true } });
         for (var i = 0; i < 2; i++) if (Console.ReadLine() is null) return;
+        Send(new { jsonrpc = "2.0", method = "hosihikari/events/publish", @params = new { topic = "ready", json = "\"ok\"" } });
         while (Console.ReadLine() is { } line)
         {
             using var document = JsonDocument.Parse(line);

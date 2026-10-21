@@ -89,7 +89,9 @@ export default {
 - **Deadlines**: waiting for the write gate, writing, and waiting for the response share one timeout.
   A timeout terminates the child to release blocked pipe writes; notifications and replies have a
   five-second write timeout. Subscription changes follow their receive order. Synchronous-delivery
-  reentry uses a dedicated bounded queue, so subscription changes stay on the ordered queue.
+  reentry uses a dedicated bounded queue; while waiting for an ack, that thread keeps draining
+  nested reentrant requests, with a bounded nesting depth. Subscription changes stay on the ordered
+  queue.
 - **Logging**: stdout carries protocol only; stderr is text logging; structured levels go through
   `hosihikari/log`.
 - **Unload**: send `unload`, close stdin, wait 5 seconds, then kill the process tree. The release

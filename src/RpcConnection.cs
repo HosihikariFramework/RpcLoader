@@ -38,6 +38,7 @@ internal sealed class RpcConnection : IDisposable
     private const int IncomingCapacity = 4096;
     private const int MaxLineLength = 4 * 1024 * 1024;
     private const int SyncReentryLimit = 1024;
+    private const int MaxSyncPumpDepth = 256;
     private readonly Channel<Incoming> _incoming = Channel.CreateBounded<Incoming>(
         new BoundedChannelOptions(IncomingCapacity)
         {
@@ -61,6 +62,8 @@ internal sealed class RpcConnection : IDisposable
     private volatile bool _hasExited;
     private int _faultReported;
     private int _syncDeliveryDepth;
+    private int _reentryThreadId = -1;
+    private int _pumpDepth;
 
     private RpcConnection(Process process, IPluginContext context)
     {
@@ -136,17 +139,25 @@ internal sealed class RpcConnection : IDisposable
     /// </summary>
     private void ReentryLoop()
     {
-        while (_reentries.Reader.WaitToReadAsync().AsTask().GetAwaiter().GetResult())
+        Volatile.Write(ref _reentryThreadId, Environment.CurrentManagedThreadId);
+        try
         {
-            while (_reentries.Reader.TryRead(out var message))
+            while (_reentries.Reader.WaitToReadAsync().AsTask().GetAwaiter().GetResult())
             {
-                if (_disposing)
+                while (_reentries.Reader.TryRead(out var message))
                 {
-                    break;
-                }
+                    if (_disposing)
+                    {
+                        break;
+                    }
 
-                HandlePluginRequest(message.Method, message.Parameters, message.RequestId);
+                    HandlePluginRequest(message.Method, message.Parameters, message.RequestId);
+                }
             }
+        }
+        finally
+        {
+            Volatile.Write(ref _reentryThreadId, -1);
         }
     }
 
@@ -276,7 +287,7 @@ internal sealed class RpcConnection : IDisposable
         try
         {
             Write(new { jsonrpc = "2.0", id, method, @params = parameters }, deadline.Token);
-            return completion.Task.WaitAsync(deadline.Token).GetAwaiter().GetResult();
+            return WaitForResponse(completion, deadline);
         }
         catch (Exception ex) when (deadline.IsCancellationRequested)
         {
@@ -288,6 +299,63 @@ internal sealed class RpcConnection : IDisposable
             {
                 _pending.Remove(id);
             }
+        }
+    }
+
+    /// <summary>
+    /// 重入线程等待 ack 时继续消费重入队列，让有限层嵌套同步发布逐层推进。
+    /// 其他线程仍直接阻塞等待；嵌套深度有上限，超过即报可观测故障。
+    /// </summary>
+    private JsonElement WaitForResponse(
+        TaskCompletionSource<JsonElement> completion,
+        CancellationTokenSource deadline)
+    {
+        if (Environment.CurrentManagedThreadId != Volatile.Read(ref _reentryThreadId))
+        {
+            return completion.Task.WaitAsync(deadline.Token).GetAwaiter().GetResult();
+        }
+
+        if (_pumpDepth >= MaxSyncPumpDepth)
+        {
+            Fault($"同步投递嵌套超过 {MaxSyncPumpDepth} 层");
+            Abort();
+            throw new InvalidOperationException($"同步投递嵌套超过 {MaxSyncPumpDepth} 层");
+        }
+
+        _pumpDepth++;
+        try
+        {
+            while (!completion.Task.IsCompleted && !deadline.IsCancellationRequested)
+            {
+                if (_reentries.Reader.TryRead(out var nested))
+                {
+                    if (!_disposing)
+                    {
+                        HandlePluginRequest(nested.Method, nested.Parameters, nested.RequestId);
+                    }
+
+                    continue;
+                }
+
+                var next = _reentries.Reader.WaitToReadAsync().AsTask();
+                var timeout = Task.Delay(Timeout.InfiniteTimeSpan, deadline.Token);
+                var finished = Task.WhenAny(completion.Task, next, timeout).GetAwaiter().GetResult();
+                if (finished == completion.Task || finished == timeout)
+                {
+                    break;
+                }
+
+                if (next.IsCompleted && !next.Result)
+                {
+                    break;
+                }
+            }
+
+            return completion.Task.WaitAsync(deadline.Token).GetAwaiter().GetResult();
+        }
+        finally
+        {
+            _pumpDepth--;
         }
     }
 
