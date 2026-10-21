@@ -162,7 +162,7 @@ dotnet run --project test/Hosihikari.PluginProvider.Rpc.Regression.csproj -c Rel
 ## 打包
 
 ```
-pwsh ./pack.ps1 -Version 0.2.1 -OutputRoot artifacts
+pwsh ./pack.ps1 -Version 0.2.2 -OutputRoot artifacts
 ```
 
 它把 Provider DLL、私有依赖、清单与 `bindings/` 装进 `hosihikari-rpc/`，共享层不随包走；打 `v*` 标签时 CI 把 zip 附到 release（ADR-0036）。
