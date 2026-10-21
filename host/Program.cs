@@ -157,7 +157,14 @@ checks.Add(("QuickJS 绑定：同步订阅等到 ack",
     Read(quickData, "sync.txt") == "sync:\"sync-host\"", Read(quickData, "sync.txt")));
 
 // 让 500/700 ms 的自发布定时器跑完：既验定时器，也验插件→宿主的 publish。
-Thread.Sleep(500);
+var quickTimers = Stopwatch.StartNew();
+while ((!File.Exists(Path.Combine(quickData, "self.txt"))
+        || !File.Exists(Path.Combine(quickData, "syncself.txt")))
+       && quickTimers.Elapsed < TimeSpan.FromSeconds(3))
+{
+    Thread.Sleep(50);
+}
+
 checks.Add(("QuickJS 绑定：定时器与自发布",
     Read(quickData, "self.txt") == "self:\"quick-publish\""
         && Read(quickData, "syncself.txt") == "syncself:\"quick-sync\"",
