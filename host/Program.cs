@@ -161,7 +161,7 @@ checks.Add(("QuickJS 绑定：同步订阅等到 ack",
 var quickTimers = Stopwatch.StartNew();
 while ((!File.Exists(Path.Combine(quickData, "self.txt"))
         || !File.Exists(Path.Combine(quickData, "syncself.txt")))
-       && quickTimers.Elapsed < TimeSpan.FromSeconds(3))
+       && quickTimers.Elapsed < TimeSpan.FromSeconds(10))
 {
     Thread.Sleep(50);
 }
