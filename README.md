@@ -187,7 +187,7 @@ and reentrant synchronous event publication. CI runs it alongside the binding as
 ## Packaging
 
 ```
-pwsh ./pack.ps1 -Version 0.2.4 -OutputRoot artifacts
+pwsh ./pack.ps1 -Version 1.0.0 -OutputRoot artifacts
 ```
 
 It assembles the loader DLL, its private dependencies, the manifest and `bindings/` into
@@ -198,7 +198,7 @@ The script invokes the core packager (`Hosihikari.PluginManager/tools/Pack`), wh
 shared-layer list. Check out the core repository alongside this one, or set
 `HOSIHIKARI_PLUGINMANAGER`.
 
-After release: `lip install github.com/HosihikariFramework/RpcProvider` (install the Shim variant
+After release: `lip install github.com/HosihikariFramework/RpcLoader` (install the Shim variant
 for the carrier first).
 
 ## Licence

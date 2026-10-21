@@ -8,7 +8,7 @@
 
     Requires a sibling Hosihikari.PluginManager checkout, or HOSIHIKARI_PLUGINMANAGER.
 
-    Usage: pwsh ./pack.ps1 -Version 0.2.3 -OutputRoot artifacts
+    Usage: pwsh ./pack.ps1 -Version 1.0.0 -OutputRoot artifacts
 #>
 param(
     [string]$Version = '0.0.0-dev',
