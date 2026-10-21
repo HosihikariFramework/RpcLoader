@@ -105,7 +105,9 @@ Provider 由插件包登记；Node、QuickJS、Python、Java 与 Kotlin 绑定�
 ## 绑定
 
 `bindings/node`、`bindings/quickjs`、`bindings/python` 与 `bindings/java` 是参考绑定，各带测试夹具；
-`bindings/kotlin` 是 JVM 绑定的 Kotlin 夹具。
+`bindings/kotlin` 是 JVM 绑定的 Kotlin 夹具。Node 绑定另附 `hosihikari.d.ts`，Python 绑定附
+`hosihikari.pyi`，QuickJS 绑定带 JSDoc 类型。Node 与 QuickJS 发往宿主的请求 30 秒超时：超时的请求
+移出待办并拒绝。
 
 QuickJS 这一份需要 PATH 上的 `qjs`（quickjs-ng），或随包携带；把 `hosihikari.js` 与 `stdin_worker.js`
 拷到入口旁边，命令指向它：

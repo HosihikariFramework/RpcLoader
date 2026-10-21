@@ -118,6 +118,9 @@ verifies the same JVM binding from Kotlin.
 
 `bindings/node`, `bindings/quickjs`, `bindings/python` and `bindings/java` hold the reference
 bindings, each with test fixtures; `bindings/kotlin` holds the Kotlin fixture for the JVM binding.
+The Node binding ships `hosihikari.d.ts`, the Python binding ships `hosihikari.pyi`, and the QuickJS
+binding carries JSDoc types. Host requests from the Node and QuickJS bindings time out after 30
+seconds; a timed-out request leaves the pending map and rejects.
 
 The QuickJS binding needs `qjs` (quickjs-ng) on PATH or carried in the package; copy
 `hosihikari.js` and `stdin_worker.js` next to the entry and point the command at it:
