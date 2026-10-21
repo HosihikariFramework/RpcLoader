@@ -110,8 +110,19 @@ jobs:
         with:
           node-version: '24.x'
 
+      - name: QuickJS
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'quickjs'
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          Invoke-WebRequest -Uri 'https://github.com/quickjs-ng/quickjs/releases/download/v0.17.0/qjs-windows-x86_64.exe' `
+            -OutFile (Join-Path $dir 'qjs.exe')
+          $dir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
       - name: 跑断言
         working-directory: provider
+        env:
+          JAVA_TOOL_OPTIONS: '-Dfile.encoding=UTF-8'
         run: dotnet run --project host/Hosihikari.PluginProvider.Rpc.Host.csproj -c Release --nologo
 
       - name: 进程监督与协议顺序回归
