@@ -157,16 +157,31 @@ checks.Add(("QuickJS 绑定：默认异步事件到达",
 checks.Add(("QuickJS 绑定：同步订阅等到 ack",
     Read(quickData, "sync.txt") == "sync:\"sync-host\"", Read(quickData, "sync.txt")));
 
-// 让 500/700 ms 的自发布定时器跑完：既验定时器，也验插件→宿主的 publish。
+// 定时器先留痕，再自发布；宿主再主动投递一次，单独验证订阅路径。
 var quickTimers = Stopwatch.StartNew();
-while ((!File.Exists(Path.Combine(quickData, "self.txt"))
-        || !File.Exists(Path.Combine(quickData, "syncself.txt")))
+while ((!File.Exists(Path.Combine(quickData, "timer-self.txt"))
+        || !File.Exists(Path.Combine(quickData, "timer-syncself.txt")))
        && quickTimers.Elapsed < TimeSpan.FromSeconds(10))
 {
     Thread.Sleep(50);
 }
 
-checks.Add(("QuickJS 绑定：定时器与自发布",
+checks.Add(("QuickJS 绑定：定时器回调",
+    Read(quickData, "timer-self.txt") == "fired"
+        && Read(quickData, "timer-syncself.txt") == "fired",
+    $"self={Read(quickData, "timer-self.txt")} syncself={Read(quickData, "timer-syncself.txt")}"));
+
+host.Events.Publish(new ChannelMessage("quick-self", "\"quick-publish\""));
+host.Events.Publish(new ChannelMessage("quick-syncself", "\"quick-sync\""));
+var quickPublish = Stopwatch.StartNew();
+while ((!File.Exists(Path.Combine(quickData, "self.txt"))
+        || !File.Exists(Path.Combine(quickData, "syncself.txt")))
+       && quickPublish.Elapsed < TimeSpan.FromSeconds(3))
+{
+    Thread.Sleep(50);
+}
+
+checks.Add(("QuickJS 绑定：自发布订阅",
     Read(quickData, "self.txt") == "self:\"quick-publish\""
         && Read(quickData, "syncself.txt") == "syncself:\"quick-sync\"",
     $"self={Read(quickData, "self.txt")} syncself={Read(quickData, "syncself.txt")}"));
