@@ -12,8 +12,8 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.13" />
     <ProjectReference Include="../src/Hosihikari.PluginLoader.Rpc.csproj" />
     <!-- 验证宿主借核心的 PluginManager；并列 checkout 才有。 -->
-    <ProjectReference Include="../../Hosihikari.PluginManager/src/Hosihikari.PluginManager.csproj"
-                      Condition="Exists('../../Hosihikari.PluginManager/src/Hosihikari.PluginManager.csproj')" />
+    <ProjectReference Include="../../PluginManager/src/Hosihikari.PluginManager.csproj"
+                      Condition="Exists('../../PluginManager/src/Hosihikari.PluginManager.csproj')" />
   </ItemGroup>
 
 </Project>

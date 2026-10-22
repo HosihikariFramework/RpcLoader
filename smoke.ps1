@@ -16,8 +16,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
 $framework = Split-Path $here -Parent
-$shim = Join-Path $framework 'Hosihikari.Shim'
-$core = Join-Path $framework 'Hosihikari.PluginManager'
+$shim = Join-Path $framework 'HostingShim'
+$core = Join-Path $framework 'PluginManager'
 
 $running = Get-Process -Name 'bedrock_server_mod' -ErrorAction SilentlyContinue
 if ($running) {

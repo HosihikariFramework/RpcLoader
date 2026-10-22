@@ -98,7 +98,7 @@ export default {
 dotnet run --project host/Hosihikari.PluginLoader.Rpc.Host.csproj -c Release
 ```
 
-需要并列的 `Hosihikari.PluginManager`、契约仓检出（契约包 `Hosihikari.Plugin.Abstractions`）与 McMaster 的 fork checkout，以及 PATH 上的
+需要并列的 `PluginManager`、契约仓检出（契约包 `Hosihikari.Plugin.Abstractions`）与 McMaster 的 fork checkout，以及 PATH 上的
 Node、`qjs`、Python（`python3`；Windows 上是 `python` 或 `py -3`）、JDK 21 与 `kotlinc`。它覆盖：
 加载器由插件包登记；Node、QuickJS、Python、Java 与 Kotlin 绑定各自验证 hello 快照与配置分层、
 启用/停用/卸载、默认异步事件、同步 ack、定时器与插件→宿主发布；Java 还覆盖拒绝启用/停用与进程死亡
@@ -171,7 +171,7 @@ pwsh ./pack.ps1 -Version 1.0.0 -OutputRoot artifacts
 
 它把加载器 DLL、私有依赖、清单与 `bindings/` 装进 `hosihikari-rpc/`，共享层不随包走；打 `v*` 标签时 CI 把 zip 附到 release（ADR-0036）。
 
-打包脚本调用插件管理者打包器（`Hosihikari.PluginManager/tools/Pack`），共享层清单由插件管理者统一给出；需要并列检出插件管理者仓，或设置 `HOSIHIKARI_PLUGINMANAGER`。
+打包脚本调用插件管理者打包器（`PluginManager/tools/Pack`），共享层清单由插件管理者统一给出；需要并列检出插件管理者仓，或设置 `HOSIHIKARI_PLUGINMANAGER`。
 
 发布后：`lip install github.com/HosihikariFramework/RpcLoader`（先按载体装 Shim）。
 

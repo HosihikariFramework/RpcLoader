@@ -7,10 +7,10 @@
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <Compile Include="../../Hosihikari.Abstractions/src/*.cs" Link="Abstractions/%(Filename)%(Extension)"
-             Condition="Exists('../../Hosihikari.Abstractions/src')" />
+    <Compile Include="../../Plugin.Abstractions/src/*.cs" Link="Abstractions/%(Filename)%(Extension)"
+             Condition="Exists('../../Plugin.Abstractions/src')" />
     <Compile Include="../../Abstractions/src/*.cs" Link="Abstractions/%(Filename)%(Extension)"
-             Condition="!Exists('../../Hosihikari.Abstractions/src')" />
+             Condition="!Exists('../../Plugin.Abstractions/src')" />
     <Compile Include="../src/RpcConnection.cs" Link="RpcConnection.cs" />
   </ItemGroup>
 </Project>

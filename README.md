@@ -111,7 +111,7 @@ data directory is read and written directly; timers belong to the child process.
 dotnet run --project host/Hosihikari.PluginLoader.Rpc.Host.csproj -c Release
 ```
 
-It needs sibling `Hosihikari.PluginManager`, the contract checkout (package `Hosihikari.Plugin.Abstractions`) and McMaster fork checkouts,
+It needs sibling `PluginManager`, the contract checkout (package `Hosihikari.Plugin.Abstractions`) and McMaster fork checkouts,
 and Node, `qjs`, Python (`python3`; on Windows `python` or `py -3`), JDK 21 and `kotlinc` on PATH.
 It covers: the loader is registered by a plugin package; the Node, QuickJS, Python, Java and
 Kotlin bindings each verify the hello snapshot with layered configuration, enable/disable/unload
@@ -194,7 +194,7 @@ It assembles the loader DLL, its private dependencies, the manifest and `binding
 `hosihikari-rpc/`; the shared layer is not copied. Pushing a `v*` tag attaches the zip to the
 GitHub release (ADR-0036).
 
-The script invokes the core packager (`Hosihikari.PluginManager/tools/Pack`), which owns the
+The script invokes the core packager (`PluginManager/tools/Pack`), which owns the
 shared-layer list. Check out the core repository alongside this one, or set
 `HOSIHIKARI_PLUGINMANAGER`.
 
