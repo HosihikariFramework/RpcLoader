@@ -8,7 +8,7 @@ line-delimited JSON-RPC 2.0 over stdio.
 - `src/` — process supervision, protocol, and loader registration.
 - `host/` — full assertion host, including child processes for each binding.
 - `test/` — protocol regression tests and fixtures.
-- `bindings/` — Node, Python, Java, Kotlin, and QuickJS bindings.
+- `protocol/` — the RPC protocol definitions for Node, Python, Java, Kotlin, and QuickJS.
 - `pack.ps1` — build the `hosihikari-rpc` lip package.
 - `tooth.json` — lip package metadata.
 
@@ -27,7 +27,7 @@ the CLI replaces the child `PATH`.
 ## Invariants
 
 - The package is a plugin package named `hosihikari-rpc`; it registers itself during `OnLoad`.
-- Bindings under `bindings/` are copied into `RpcPluginTemplate`; keep both copies identical.
+- Protocol definitions under `protocol/` are copied into `RpcPluginTemplate`; keep both copies identical.
 - Queues are bounded; Node and QuickJS host requests time out after 30 seconds; notifications keep
   wire order.
 - Child processes receive an argument list, never a shell string. Unload exits the child.

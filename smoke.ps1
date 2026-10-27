@@ -71,8 +71,8 @@ function Stage-RpcPlugin([string]$Name, [string]$Entry) {
     $package = Join-Path $ServerRoot "plugins\$Name"
     if (Test-Path $package) { Remove-Item $package -Recurse -Force }
     New-Item -ItemType Directory -Path $package | Out-Null
-    Copy-Item (Join-Path $here 'bindings\node\hosihikari.mjs') $package
-    Copy-Item (Join-Path $here "bindings\node\$Entry") $package
+    Copy-Item (Join-Path $here 'protocol\node\hosihikari.mjs') $package
+    Copy-Item (Join-Path $here "protocol\node\$Entry") $package
     $command = '["node","./hosihikari.mjs","./' + $Entry + '"]'
     Write-Manifest (Join-Path $package 'manifest.json') $Name $Entry 'rpc' `
         $command `

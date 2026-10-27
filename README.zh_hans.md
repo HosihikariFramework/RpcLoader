@@ -40,7 +40,7 @@ plugins/Hello/
         "command": "[\"node\", \"./hosihikari.mjs\", \"./main.mjs\"]"
       }
     }
-  hosihikari.mjs     ← 绑定，从本仓 bindings/node 拷来
+  hosihikari.mjs     ← 协议定义，从本仓 protocol/node 拷来
   main.mjs
   Hello.conf
 ```
@@ -51,7 +51,7 @@ plugins/Hello/
 
 ## 插件怎么写
 
-绑定把默认导出的对象接到协议上。钩子可以 async；`undefined` / `true` 允许，`false` 或
+协议定义把默认导出的对象接到协议上。钩子可以 async；`undefined` / `true` 允许，`false` 或
 `{ allowed: false, reason }` 拒绝，抛异常是故障。
 
 ```js
@@ -75,7 +75,7 @@ export default {
 
 ## 协议
 
-- **握手**：宿主发 `hosihikari/hello`，带协议版本、名字、数据目录、包目录与配置快照；绑定在返回前
+- **握手**：宿主发 `hosihikari/hello`，带协议版本、名字、数据目录、包目录与配置快照；协议定义在返回前
   调用 `onLoad(ctx)`。
 - **宿主→插件**：`hosihikari/enable` / `disable` / `unload` / `events/deliver`。
 - **插件→宿主**：`hosihikari/events/publish` / `subscribe` / `unsubscribe` / `log`。
@@ -100,15 +100,15 @@ dotnet run --project host/Hosihikari.PluginLoader.Rpc.Host.csproj -c Release
 
 需要并列的 `PluginManager`、契约仓检出（契约包 `Hosihikari.Plugin.Abstractions`）与 McMaster 的 fork checkout，以及 PATH 上的
 Node、`qjs`、Python（`python3`；Windows 上是 `python` 或 `py -3`）、JDK 21 与 `kotlinc`。它覆盖：
-加载器由插件包登记；Node、QuickJS、Python、Java 与 Kotlin 绑定各自验证 hello 快照与配置分层、
+加载器由插件包登记；Node、QuickJS、Python、Java 与 Kotlin 协议定义各自验证 hello 快照与配置分层、
 启用/停用/卸载、默认异步事件、同步 ack、定时器与插件→宿主发布；Java 还覆盖拒绝启用/停用与进程死亡
-故障卸载，Kotlin 验证同一份 JVM 绑定在 Kotlin 下的互操作。
+故障卸载，Kotlin 验证同一份 JVM 协议定义在 Kotlin 下的互操作。
 
-## 绑定
+## 协议定义
 
-`bindings/node`、`bindings/quickjs`、`bindings/python` 与 `bindings/java` 是参考绑定，各带测试夹具；
-`bindings/kotlin` 是 JVM 绑定的 Kotlin 夹具。Node 绑定另附 `hosihikari.d.ts`，Python 绑定附
-`hosihikari.pyi`，QuickJS 绑定带 JSDoc 类型。Node 与 QuickJS 发往宿主的请求 30 秒超时：超时的请求
+`protocol/node`、`protocol/quickjs`、`protocol/python` 与 `protocol/java` 是参考协议定义，各带测试夹具；
+`protocol/kotlin` 是 JVM 协议定义的 Kotlin 夹具。Node 侧另附 `hosihikari.d.ts`，Python 侧附
+`hosihikari.pyi`，QuickJS 协议定义带 JSDoc 类型。Node 与 QuickJS 发往宿主的请求 30 秒超时：超时的请求
 移出待办并拒绝。
 
 QuickJS 这一份需要 PATH 上的 `qjs`（quickjs-ng），或随包携带；把 `hosihikari.js` 与 `stdin_worker.js`
@@ -133,25 +133,25 @@ Python 这一份把 `hosihikari.py` 拷到入口旁边；插件定义模块级�
 `subscribe(topic, fn, sync=False)`、`schedule_once(seconds, fn)`、`schedule_periodic(seconds, fn)`。
 `print` 走 stderr，stdout 只留给协议。
 
-JVM 绑定在 `bindings/java/hosihikari`，Java 与 Kotlin 插件共用同一份。插件实现
+JVM 协议定义在 `protocol/java/hosihikari`，Java 与 Kotlin 插件共用同一份。插件实现
 `hosihikari.Plugin`（`onLoad` / `onEnable` / `onDisable` / `onUnload`），钩子返回
 `HookResult.allow()` / `HookResult.refuse(reason)`；`Context` 提供 `name()`、`dataDirectory()`、
 `packageDirectory()`、`config(key)`、`configObject()`、`logInfo/logWarn/logError`、
 `writeData(file, text)`、`publish(topic, json)`、`subscribe(topic, Consumer<String>[, sync])`、
-`scheduleOnce(millis, Runnable)`、`schedulePeriodic(millis, Runnable)`。Java 插件与绑定一起编译：
+`scheduleOnce(millis, Runnable)`、`schedulePeriodic(millis, Runnable)`。Java 插件与协议定义一起编译：
 
 ```json
 "command": "[\"java\", \"-cp\", \"./classes\", \"hosihikari.Binding\", \"hello.HelloPlugin\"]"
 ```
 
-Kotlin 插件实现同一接口，编译时把 Java 绑定类放进 classpath，并把 Kotlin 标准库打进 jar；
+Kotlin 插件实现同一接口，编译时把 Java 协议定义类放进 classpath，并把 Kotlin 标准库打进 jar；
 运行时 classpath 分隔符在 Unix 是 `:`、Windows 是 `;`：
 
 ```json
 "command": "[\"java\", \"-cp\", \"./plugin.jar:./classes\", \"hosihikari.Binding\", \"hello.HelloPlugin\"]"
 ```
 
-JVM 绑定需要 JDK 21；Kotlin 插件另需构建期的 `kotlinc`，运行时只要有 `java` 与打好的 jar。
+JVM 协议定义需要 JDK 21；Kotlin 插件另需构建期的 `kotlinc`，运行时只要有 `java` 与打好的 jar。
 其余语言按需补，协议不变。
 
 进程监督与订阅顺序回归不需要 Node、QuickJS、Python、JDK 或 Kotlin，也可以单独运行：
@@ -161,7 +161,7 @@ dotnet run --project test/Hosihikari.PluginLoader.Rpc.Regression.csproj -c Relea
 ```
 
 此检查直接编译生产连接源码及并列的 Abstractions 源码，覆盖阻塞写入、请求共用截止时间、
-并发释放、通知超时、订阅顺序，以及同步事件处理中的再次发布。CI 同时运行它与绑定断言。
+并发释放、通知超时、订阅顺序，以及同步事件处理中的再次发布。CI 同时运行它与协议定义断言。
 
 ## 打包
 
@@ -169,7 +169,7 @@ dotnet run --project test/Hosihikari.PluginLoader.Rpc.Regression.csproj -c Relea
 pwsh ./pack.ps1 -Version 1.0.0 -OutputRoot artifacts
 ```
 
-它把加载器 DLL、私有依赖、清单与 `bindings/` 装进 `hosihikari-rpc/`，共享层不随包走；打 `v*` 标签时 CI 把 zip 附到 release（ADR-0036）。
+它把加载器 DLL、私有依赖、清单与 `protocol/` 装进 `hosihikari-rpc/`，共享层不随包走；打 `v*` 标签时 CI 把 zip 附到 release（ADR-0036）。
 
 打包脚本调用插件管理器打包器（`PluginManager/tools/Pack`），共享层清单由插件管理器统一给出；需要并列检出插件管理器仓，或设置 `HOSIHIKARI_PLUGINMANAGER`。
 
