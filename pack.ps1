@@ -2,7 +2,7 @@
     Assemble the hosihikari-rpc loader package.
 
     The package is a plugin package itself: loader DLL, private dependencies,
-    manifest and the language bindings authors copy into their own packages.
+    manifest and the language protocol definitions authors copy into their own packages.
     Shared-layer assemblies are excluded by the core packager from its canonical
     list (ADR-0019 / 0026 / 0036).
 
@@ -56,7 +56,7 @@ try {
     Remove-Item $manifest -Force -ErrorAction SilentlyContinue
 }
 
-Copy-Item (Join-Path $here 'bindings') (Join-Path $package 'bindings') -Recurse
+Copy-Item (Join-Path $here 'protocol') (Join-Path $package 'protocol') -Recurse
 
 $zip = Join-Path $root "$name-$Version.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }

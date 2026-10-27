@@ -480,10 +480,10 @@ void StagePlugin(string name, string entry, bool parented = false)
         """);
 
     File.Copy(
-        Path.Combine(repoRoot, "bindings", "node", "hosihikari.mjs"),
+        Path.Combine(repoRoot, "protocol", "node", "hosihikari.mjs"),
         Path.Combine(package, "hosihikari.mjs"));
     File.Copy(
-        Path.Combine(repoRoot, "bindings", "node", entry),
+        Path.Combine(repoRoot, "protocol", "node", entry),
         Path.Combine(package, entry));
 }
 
@@ -513,13 +513,13 @@ void StageQuickPlugin(string name, string entry, bool parented = false)
         """);
 
     File.Copy(
-        Path.Combine(repoRoot, "bindings", "quickjs", "hosihikari.js"),
+        Path.Combine(repoRoot, "protocol", "quickjs", "hosihikari.js"),
         Path.Combine(package, "hosihikari.js"));
     File.Copy(
-        Path.Combine(repoRoot, "bindings", "quickjs", "stdin_worker.js"),
+        Path.Combine(repoRoot, "protocol", "quickjs", "stdin_worker.js"),
         Path.Combine(package, "stdin_worker.js"));
     File.Copy(
-        Path.Combine(repoRoot, "bindings", "quickjs", entry),
+        Path.Combine(repoRoot, "protocol", "quickjs", entry),
         Path.Combine(package, entry));
     File.WriteAllText(Path.Combine(package, $"{name}.conf"), "greeting = \"quick-package\"\n");
 }
@@ -549,10 +549,10 @@ void StagePythonPlugin(string name, string entry, bool parented = false)
     File.WriteAllText(Path.Combine(package, "manifest.json"), manifest);
 
     File.Copy(
-        Path.Combine(repoRoot, "bindings", "python", "hosihikari.py"),
+        Path.Combine(repoRoot, "protocol", "python", "hosihikari.py"),
         Path.Combine(package, "hosihikari.py"));
     File.Copy(
-        Path.Combine(repoRoot, "bindings", "python", entry),
+        Path.Combine(repoRoot, "protocol", "python", entry),
         Path.Combine(package, entry));
 }
 
@@ -609,7 +609,7 @@ bool StageJavaPlugin(string name, string pluginClass, string fixture, bool paren
 
     var arguments = new List<string> { "-d", classes };
     arguments.AddRange(BindingSources());
-    arguments.Add(Path.Combine(repoRoot, "bindings", "java", "fixtures", fixture));
+    arguments.Add(Path.Combine(repoRoot, "protocol", "java", "fixtures", fixture));
 
     var compile = RunTool(javac!, arguments);
     if (!compile.Ok)
@@ -647,7 +647,7 @@ bool StageKotlinPlugin(string name, string pluginClass, string fixture)
         "-cp", classes,
         "-include-runtime",
         "-d", jar,
-        Path.Combine(repoRoot, "bindings", "kotlin", "fixtures", fixture),
+        Path.Combine(repoRoot, "protocol", "kotlin", "fixtures", fixture),
     });
     if (!kotlinCompile.Ok)
     {
@@ -668,7 +668,7 @@ IEnumerable<string> BindingSources()
 {
     foreach (var file in new[] { "Binding.java", "Context.java", "HookResult.java", "Json.java", "Plugin.java" })
     {
-        yield return Path.Combine(repoRoot, "bindings", "java", "hosihikari", file);
+        yield return Path.Combine(repoRoot, "protocol", "java", "hosihikari", file);
     }
 }
 
