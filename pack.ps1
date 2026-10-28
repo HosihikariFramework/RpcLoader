@@ -48,7 +48,7 @@ try {
         version      = $Version
         dependencies = @(@{ name = 'hosihikari' })
         extraInfo    = [ordered]@{ api_version = '2'; manifest_version = '1'; loader = 'assembly' }
-    } | ConvertTo-Json -Depth 6 | Set-Content $manifest -Encoding UTF8
+    } | ConvertTo-Json -Depth 6 | Set-Content $manifest -Encoding utf8NoBOM
 
     & dotnet run --project $packTool -c Release -- pack-loader $output $manifest $root
     if ($LASTEXITCODE -ne 0) { throw 'the core packager failed' }
@@ -60,5 +60,16 @@ Copy-Item (Join-Path $here 'protocol') (Join-Path $package 'protocol') -Recurse
 
 $zip = Join-Path $root "$name-$Version.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }
-Compress-Archive -Path $package -DestinationPath $zip
+
+$lipManifest = Join-Path $root 'manifest.json'
+[ordered]@{
+    formatVersion = 4
+    formatUuid    = '0c6b977a-64ad-441f-9a29-c7f4b196882f'
+    name          = 'RpcLoader'
+    version       = $Version
+    type          = 'files'
+    placements    = @(@{ src = "$name/"; dest = "plugins/$name/" })
+} | ConvertTo-Json -Depth 6 | Set-Content $lipManifest -Encoding utf8NoBOM
+
+Compress-Archive -Path $package, $lipManifest -DestinationPath $zip
 Write-Host "packed $zip"

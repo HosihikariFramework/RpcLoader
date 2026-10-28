@@ -10,7 +10,7 @@ line-delimited JSON-RPC 2.0 over stdio.
 - `test/` — protocol regression tests and fixtures.
 - `protocol/` — the RPC protocol definitions for Node, Python, Java, Kotlin, and QuickJS.
 - `pack.ps1` — build the `hosihikari-rpc` lip package.
-- `tooth.json` — lip package metadata.
+- `manifest.json` — lip package metadata (format version 4).
 
 ## Build and verify
 
