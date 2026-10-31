@@ -9,8 +9,7 @@ line-delimited JSON-RPC 2.0 over stdio.
 - `host/` — full assertion host, including child processes for each binding.
 - `test/` — protocol regression tests and fixtures.
 - `protocol/` — the RPC protocol definitions for Node, Python, Java, Kotlin, and QuickJS.
-- `pack.ps1` — build the `hosihikari-rpc` lip package.
-- `tooth.json` — lip package metadata.
+- `pack.ps1` — build the `hosihikari-rpc` release archive.
 
 ## Build and verify
 

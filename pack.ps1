@@ -1,5 +1,6 @@
 <#
-    Assemble the hosihikari-rpc loader package.
+    Assemble the hosihikari-rpc loader release archive. Extracting it at the
+    server root installs the loader into plugins/hosihikari-rpc/.
 
     The package is a plugin package itself: loader DLL, private dependencies,
     manifest and the language protocol definitions authors copy into their own packages.
@@ -25,9 +26,10 @@ if ($LASTEXITCODE -ne 0) { throw 'the rpc loader failed to build' }
 
 $output = Join-Path $here 'src/bin/Release/net10.0'
 $root = if ([System.IO.Path]::IsPathRooted($OutputRoot)) { $OutputRoot } else { Join-Path $here $OutputRoot }
-$package = Join-Path $root $name
+$packageRoot = Join-Path $root 'plugins'
+$package = Join-Path $packageRoot $name
 if (Test-Path $package) { Remove-Item $package -Recurse -Force }
-New-Item -ItemType Directory -Path $root -Force | Out-Null
+New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
 
 $core = if ($env:HOSIHIKARI_PLUGINMANAGER) {
     $env:HOSIHIKARI_PLUGINMANAGER
@@ -50,7 +52,7 @@ try {
         extraInfo    = [ordered]@{ api_version = '2'; manifest_version = '1'; loader = 'assembly' }
     } | ConvertTo-Json -Depth 6 | Set-Content $manifest -Encoding UTF8
 
-    & dotnet run --project $packTool -c Release -- pack-loader $output $manifest $root
+    & dotnet run --project $packTool -c Release -- pack-loader $output $manifest $packageRoot
     if ($LASTEXITCODE -ne 0) { throw 'the core packager failed' }
 } finally {
     Remove-Item $manifest -Force -ErrorAction SilentlyContinue
@@ -58,7 +60,17 @@ try {
 
 Copy-Item (Join-Path $here 'protocol') (Join-Path $package 'protocol') -Recurse
 
+# 包根的 sei.json 是分发元数据，安装时被跳过；加载器依赖核心的 1.x 兼容线。
+$sei = Join-Path $root 'sei.json'
+[ordered]@{
+    schemaVersion = 1
+    name          = $name
+    version       = $Version
+    dependencies  = @(@{ name = 'hosihikari'; version = '[1.2.0,2.0.0)' })
+    layout        = 'root'
+} | ConvertTo-Json -Depth 4 | Set-Content $sei -Encoding utf8NoBOM
+
 $zip = Join-Path $root "$name-$Version.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }
-Compress-Archive -Path $package -DestinationPath $zip
+Compress-Archive -Path $packageRoot, $sei -DestinationPath $zip
 Write-Host "packed $zip"
