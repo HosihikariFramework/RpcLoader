@@ -10,7 +10,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-// 断言引用中文故障文本；把 UI 文化钉在 zh-Hans，让每台 runner 一致。
+// 断言引用中文故障文本；把 UI 文化钉在 zh-Hans，让每台 runner 与后台线程一致。
+CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.GetCultureInfo("zh-Hans");
 CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("zh-Hans");
 
 if (args.FirstOrDefault() == "--child")
