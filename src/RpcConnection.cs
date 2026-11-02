@@ -197,7 +197,7 @@ internal sealed class RpcConnection : IDisposable
             start.ArgumentList.Add(command[i]);
         }
 
-        var process = Process.Start(start) ?? throw new InvalidOperationException("进程没有启动");
+        var process = Process.Start(start) ?? throw new InvalidOperationException("The plugin process did not start");
         return new RpcConnection(process, context);
     }
 
@@ -245,7 +245,7 @@ internal sealed class RpcConnection : IDisposable
             || !result.TryGetProperty("allowed", out var allowed)
             || allowed.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
         {
-            throw new InvalidOperationException($"{method} 的结果缺少布尔 allowed");
+            throw new InvalidOperationException($"The result of {method} is missing the boolean allowed");
         }
 
         var reason = result.TryGetProperty("reason", out var value) && value.ValueKind == JsonValueKind.String
@@ -278,7 +278,7 @@ internal sealed class RpcConnection : IDisposable
     {
         if (_dead)
         {
-            throw new InvalidOperationException("插件进程已经退出");
+            throw new InvalidOperationException("The plugin process has exited");
         }
 
         var id = Interlocked.Increment(ref _nextId);
@@ -297,7 +297,7 @@ internal sealed class RpcConnection : IDisposable
         }
         catch (Exception ex) when (deadline.IsCancellationRequested)
         {
-            throw new TimeoutException($"{method} 在 {timeout.TotalSeconds:0} 秒内没有完成", ex);
+            throw new TimeoutException($"{method} did not complete within {timeout.TotalSeconds:0} seconds", ex);
         }
         finally
         {
@@ -325,7 +325,7 @@ internal sealed class RpcConnection : IDisposable
         {
             Fault(LoaderText.Get("SyncPumpTooDeep", MaxSyncPumpDepth));
             Abort();
-            throw new InvalidOperationException($"同步投递嵌套超过 {MaxSyncPumpDepth} 层");
+            throw new InvalidOperationException($"Synchronous delivery nesting exceeded {MaxSyncPumpDepth} levels");
         }
 
         _pumpDepth++;
@@ -380,7 +380,7 @@ internal sealed class RpcConnection : IDisposable
         {
             if (_dead)
             {
-                throw new InvalidOperationException("插件进程已经退出");
+                throw new InvalidOperationException("The plugin process has exited");
             }
 
             // Cancellation kills a stuck reader as well, so the write itself finishes before releasing the gate.
@@ -641,7 +641,7 @@ internal sealed class RpcConnection : IDisposable
                     Log(parameters);
                     break;
                 default:
-                    throw new InvalidOperationException($"未知方法 {method}");
+                    throw new InvalidOperationException($"Unknown method {method}");
             }
 
             if (requestId.ValueKind != JsonValueKind.Undefined)
@@ -910,7 +910,7 @@ internal sealed class RpcConnection : IDisposable
                 Abort();
                 if (!_writeLock.Wait(ShutdownTimeout))
                 {
-                    throw new TimeoutException("插件进程的写入没有结束");
+                    throw new TimeoutException("The plugin process write did not finish");
                 }
             }
             try
@@ -933,7 +933,7 @@ internal sealed class RpcConnection : IDisposable
                     _process.Kill(entireProcessTree: true);
                     if (!_process.WaitForExit(ShutdownTimeout))
                     {
-                        throw new TimeoutException("插件进程没有结束");
+                        throw new TimeoutException("The plugin process did not exit");
                     }
                 }
                 _hasExited = true;
