@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="ReplyFailed" xml:space="preserve">
+    <value>{0}: 回复插件请求失败</value>
+  </data>
+  <data name="UnloadIncomplete" xml:space="preserve">
+    <value>{0}: 卸载请求没有完成</value>
+  </data>
+  <data name="StoppingProcess" xml:space="preserve">
+    <value>{0}: 结束插件进程</value>
+  </data>
+  <data name="StdoutNotJson" xml:space="preserve">
+    <value>{0}: stdout 上收到非 JSON 行</value>
+  </data>
+  <data name="StdoutRootNotObject" xml:space="preserve">
+    <value>{0}: stdout 上的 JSON 根不是对象</value>
+  </data>
+  <data name="StdoutReadFailed" xml:space="preserve">
+    <value>{0}: 读进程输出失败</value>
+  </data>
+  <data name="DispatchFailed" xml:space="preserve">
+    <value>{0}: 处理 {1} 失败</value>
+  </data>
+  <data name="AsyncEventFailed" xml:space="preserve">
+    <value>{0}: 异步事件投递失败</value>
+  </data>
+  <data name="StderrReadFailed" xml:space="preserve">
+    <value>{0}: 读 stderr 失败</value>
+  </data>
+  <data name="ReportFaultFailed" xml:space="preserve">
+    <value>{0}: 报告故障失败</value>
+  </data>
+  <data name="CommandMissing" xml:space="preserve">
+    <value>{0}: extraInfo.command 缺失或不是非空字符串数组</value>
+  </data>
+  <data name="ProcessStartFailed" xml:space="preserve">
+    <value>{0}: 启动进程失败（{1}）</value>
+  </data>
+  <data name="ProcessStopTimeout" xml:space="preserve">
+    <value>{0}: 关闭插件进程没有在限期内完成</value>
+  </data>
+  <data name="ProcessExited" xml:space="preserve">
+    <value>插件进程退出</value>
+  </data>
+  <data name="SyncPumpTooDeep" xml:space="preserve">
+    <value>同步投递嵌套超过 {0} 层</value>
+  </data>
+  <data name="LineTooLong" xml:space="preserve">
+    <value>插件写入了超过 {0} 字符的单行</value>
+  </data>
+  <data name="SyncReentryLimit" xml:space="preserve">
+    <value>同步投递期间的重入请求超过 {0} 条</value>
+  </data>
+  <data name="NotificationQueueOverflow" xml:space="preserve">
+    <value>插件通知队列溢出</value>
+  </data>
+  <data name="SyncEventFailed" xml:space="preserve">
+    <value>同步事件投递失败：{0}</value>
+  </data>
+</root>

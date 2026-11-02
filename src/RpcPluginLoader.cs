@@ -18,7 +18,9 @@ public sealed class RpcPluginLoader : IPluginLoader
         var command = PluginCommand.Read(packageDirectory);
         if (command is null)
         {
-            context.Logger.LogError("{Name}: extraInfo.command 缺失或不是非空字符串数组", manifest.Name);
+            context.Logger.LogError(
+                "{Message}",
+                LoaderText.Get("CommandMissing", manifest.Name));
             return null;
         }
 
@@ -29,7 +31,10 @@ public sealed class RpcPluginLoader : IPluginLoader
         }
         catch (Exception ex)
         {
-            context.Logger.LogError(ex, "{Name}: 启动进程失败（{Command}）", manifest.Name, string.Join(' ', command));
+            context.Logger.LogError(
+                ex,
+                "{Message}",
+                LoaderText.Get("ProcessStartFailed", manifest.Name, string.Join(' ', command)));
             return null;
         }
     }
@@ -72,7 +77,10 @@ internal sealed class RpcPluginHandle(
         catch (Exception ex)
         {
             // 进程没在限期内收尾：交给验证如实报失败，卸载停在已放下（ADR-0025）。
-            context.Logger.LogWarning(ex, "{Name}: 关闭插件进程没有在限期内完成", context.Name);
+            context.Logger.LogWarning(
+                ex,
+                "{Message}",
+                LoaderText.Get("ProcessStopTimeout", context.Name));
         }
 
         Plugin = null;

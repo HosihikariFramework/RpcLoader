@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="ReplyFailed" xml:space="preserve">
+    <value>{0}: replying to the plugin failed</value>
+  </data>
+  <data name="UnloadIncomplete" xml:space="preserve">
+    <value>{0}: unload request did not complete</value>
+  </data>
+  <data name="StoppingProcess" xml:space="preserve">
+    <value>{0}: stopping the plugin process</value>
+  </data>
+  <data name="StdoutNotJson" xml:space="preserve">
+    <value>{0}: non-JSON line on stdout</value>
+  </data>
+  <data name="StdoutRootNotObject" xml:space="preserve">
+    <value>{0}: JSON root on stdout is not an object</value>
+  </data>
+  <data name="StdoutReadFailed" xml:space="preserve">
+    <value>{0}: reading process output failed</value>
+  </data>
+  <data name="DispatchFailed" xml:space="preserve">
+    <value>{0}: handling {1} failed</value>
+  </data>
+  <data name="AsyncEventFailed" xml:space="preserve">
+    <value>{0}: asynchronous event delivery failed</value>
+  </data>
+  <data name="StderrReadFailed" xml:space="preserve">
+    <value>{0}: reading stderr failed</value>
+  </data>
+  <data name="ReportFaultFailed" xml:space="preserve">
+    <value>{0}: reporting the fault failed</value>
+  </data>
+  <data name="CommandMissing" xml:space="preserve">
+    <value>{0}: extraInfo.command is missing or not a non-empty string array</value>
+  </data>
+  <data name="ProcessStartFailed" xml:space="preserve">
+    <value>{0}: starting the process failed ({1})</value>
+  </data>
+  <data name="ProcessStopTimeout" xml:space="preserve">
+    <value>{0}: stopping the plugin process did not finish in time</value>
+  </data>
+  <data name="ProcessExited" xml:space="preserve">
+    <value>plugin process exited</value>
+  </data>
+  <data name="SyncPumpTooDeep" xml:space="preserve">
+    <value>synchronous delivery nesting exceeded {0} levels</value>
+  </data>
+  <data name="LineTooLong" xml:space="preserve">
+    <value>plugin wrote a single line longer than {0} characters</value>
+  </data>
+  <data name="SyncReentryLimit" xml:space="preserve">
+    <value>reentrant requests during synchronous delivery exceeded {0}</value>
+  </data>
+  <data name="NotificationQueueOverflow" xml:space="preserve">
+    <value>plugin notification queue overflowed</value>
+  </data>
+  <data name="SyncEventFailed" xml:space="preserve">
+    <value>synchronous event delivery failed: {0}</value>
+  </data>
+</root>

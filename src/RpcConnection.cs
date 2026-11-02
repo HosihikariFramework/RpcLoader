@@ -102,7 +102,10 @@ internal sealed class RpcConnection : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    _context.Logger.LogDebug(ex, "{Name}: 回复插件请求失败", _name);
+                    _context.Logger.LogDebug(
+                        ex,
+                        "{Message}",
+                        LoaderText.Get("ReplyFailed", _name));
                 }
             }
         }
@@ -173,7 +176,7 @@ internal sealed class RpcConnection : IDisposable
 
         _dead = true;
         FailPending(new InvalidOperationException("插件进程已退出"));
-        Fault("插件进程退出");
+        Fault(LoaderText.Get("ProcessExited"));
     }
 
     public static RpcConnection Start(IReadOnlyList<string> command, string packageDirectory, IPluginContext context)
@@ -262,7 +265,10 @@ internal sealed class RpcConnection : IDisposable
         }
         catch (Exception ex)
         {
-            _context.Logger.LogWarning(ex, "{Name}: 卸载请求没有完成", _name);
+            _context.Logger.LogWarning(
+                ex,
+                "{Message}",
+                LoaderText.Get("UnloadIncomplete", _name));
         }
 
         Dispose();
@@ -317,7 +323,7 @@ internal sealed class RpcConnection : IDisposable
 
         if (_pumpDepth >= MaxSyncPumpDepth)
         {
-            Fault($"同步投递嵌套超过 {MaxSyncPumpDepth} 层");
+            Fault(LoaderText.Get("SyncPumpTooDeep", MaxSyncPumpDepth));
             Abort();
             throw new InvalidOperationException($"同步投递嵌套超过 {MaxSyncPumpDepth} 层");
         }
@@ -396,7 +402,10 @@ internal sealed class RpcConnection : IDisposable
         }
         catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
         {
-            _context.Logger.LogDebug(ex, "{Name}: 结束插件进程", _name);
+            _context.Logger.LogDebug(
+                ex,
+                "{Message}",
+                LoaderText.Get("StoppingProcess", _name));
         }
     }
 
@@ -411,7 +420,7 @@ internal sealed class RpcConnection : IDisposable
                 var line = lines.ReadLine(out var overflow);
                 if (overflow)
                 {
-                    Fault($"插件写入了超过 {MaxLineLength} 字符的单行");
+                    Fault(LoaderText.Get("LineTooLong", MaxLineLength));
                     Abort();
                     break;
                 }
@@ -431,7 +440,10 @@ internal sealed class RpcConnection : IDisposable
                 }
                 catch (JsonException ex)
                 {
-                    _context.Logger.LogWarning(ex, "{Name}: stdout 上收到非 JSON 行", _name);
+                    _context.Logger.LogWarning(
+                        ex,
+                        "{Message}",
+                        LoaderText.Get("StdoutNotJson", _name));
                     continue;
                 }
 
@@ -441,7 +453,9 @@ internal sealed class RpcConnection : IDisposable
                     // 合法的 JSON 也可以是数组、字符串或 null；TryGetProperty 只接受对象。
                     if (root.ValueKind != JsonValueKind.Object)
                     {
-                        _context.Logger.LogWarning("{Name}: stdout 上的 JSON 根不是对象", _name);
+                        _context.Logger.LogWarning(
+                            "{Message}",
+                            LoaderText.Get("StdoutRootNotObject", _name));
                         continue;
                     }
 
@@ -485,7 +499,7 @@ internal sealed class RpcConnection : IDisposable
                         // 独立的有界重入队列；满了说明子进程在同步投递里灌请求。
                         if (!_reentries.Writer.TryWrite(new Incoming(method, parameters, requestId)))
                         {
-                            Fault($"同步投递期间的重入请求超过 {SyncReentryLimit} 条");
+                            Fault(LoaderText.Get("SyncReentryLimit", SyncReentryLimit));
                             Abort();
                             break;
                         }
@@ -493,7 +507,7 @@ internal sealed class RpcConnection : IDisposable
                     else if (!_incoming.Writer.TryWrite(new Incoming(method, parameters, requestId)))
                     {
                         // 队列满说明子进程在宿主处理不过来时还在灌通知；杀掉比无限占内存好。
-                        Fault("插件通知队列溢出");
+                        Fault(LoaderText.Get("NotificationQueueOverflow"));
                         Abort();
                         break;
                     }
@@ -504,7 +518,10 @@ internal sealed class RpcConnection : IDisposable
         {
             if (!_disposing)
             {
-                _context.Logger.LogError(ex, "{Name}: 读进程输出失败", _name);
+                _context.Logger.LogError(
+                    ex,
+                    "{Message}",
+                    LoaderText.Get("StdoutReadFailed", _name));
             }
         }
         finally
@@ -513,7 +530,7 @@ internal sealed class RpcConnection : IDisposable
             FailPending(new InvalidOperationException("插件进程的 stdout 已关闭"));
             if (!_disposing)
             {
-                Fault("插件进程退出");
+                Fault(LoaderText.Get("ProcessExited"));
             }
         }
     }
@@ -640,7 +657,10 @@ internal sealed class RpcConnection : IDisposable
             }
             else
             {
-                _context.Logger.LogError(ex, "{Name}: 处理 {Method} 失败", _name, method);
+                _context.Logger.LogError(
+                    ex,
+                    "{Message}",
+                    LoaderText.Get("DispatchFailed", _name, method));
             }
         }
     }
@@ -745,7 +765,10 @@ internal sealed class RpcConnection : IDisposable
             }
             catch (Exception ex)
             {
-                _context.Logger.LogWarning(ex, "{Name}: 异步事件投递失败", _name);
+                _context.Logger.LogWarning(
+                    ex,
+                    "{Message}",
+                    LoaderText.Get("AsyncEventFailed", _name));
             }
 
             return;
@@ -758,7 +781,7 @@ internal sealed class RpcConnection : IDisposable
         }
         catch (Exception ex)
         {
-            Fault($"同步事件投递失败：{ex.Message}");
+            Fault(LoaderText.Get("SyncEventFailed", ex.Message));
         }
         finally
         {
@@ -819,7 +842,10 @@ internal sealed class RpcConnection : IDisposable
         {
             if (!_disposing)
             {
-                _context.Logger.LogWarning(ex, "{Name}: 读 stderr 失败", _name);
+                _context.Logger.LogWarning(
+                    ex,
+                    "{Message}",
+                    LoaderText.Get("StderrReadFailed", _name));
             }
         }
     }
@@ -842,7 +868,10 @@ internal sealed class RpcConnection : IDisposable
         }
         catch (Exception ex)
         {
-            _context.Logger.LogError(ex, "{Name}: 报告故障失败", _name);
+            _context.Logger.LogError(
+                ex,
+                "{Message}",
+                LoaderText.Get("ReportFaultFailed", _name));
         }
     }
 

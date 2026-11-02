@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="ReplyFailed" xml:space="preserve">
+    <value>{0} : la réponse au plugin a échoué</value>
+  </data>
+  <data name="UnloadIncomplete" xml:space="preserve">
+    <value>{0} : la demande de déchargement ne s&#x27;est pas terminée</value>
+  </data>
+  <data name="StoppingProcess" xml:space="preserve">
+    <value>{0} : arrêt du processus du plugin</value>
+  </data>
+  <data name="StdoutNotJson" xml:space="preserve">
+    <value>{0} : ligne non JSON sur stdout</value>
+  </data>
+  <data name="StdoutRootNotObject" xml:space="preserve">
+    <value>{0} : la racine JSON sur stdout n&#x27;est pas un objet</value>
+  </data>
+  <data name="StdoutReadFailed" xml:space="preserve">
+    <value>{0} : la lecture de la sortie du processus a échoué</value>
+  </data>
+  <data name="DispatchFailed" xml:space="preserve">
+    <value>{0} : le traitement de {1} a échoué</value>
+  </data>
+  <data name="AsyncEventFailed" xml:space="preserve">
+    <value>{0} : la livraison asynchrone de l&#x27;événement a échoué</value>
+  </data>
+  <data name="StderrReadFailed" xml:space="preserve">
+    <value>{0} : la lecture de stderr a échoué</value>
+  </data>
+  <data name="ReportFaultFailed" xml:space="preserve">
+    <value>{0} : le signalement de la défaillance a échoué</value>
+  </data>
+  <data name="CommandMissing" xml:space="preserve">
+    <value>{0} : extraInfo.command est absent ou n&#x27;est pas un tableau de chaînes non vide</value>
+  </data>
+  <data name="ProcessStartFailed" xml:space="preserve">
+    <value>{0} : le démarrage du processus a échoué ({1})</value>
+  </data>
+  <data name="ProcessStopTimeout" xml:space="preserve">
+    <value>{0} : l&#x27;arrêt du processus du plugin ne s&#x27;est pas terminé à temps</value>
+  </data>
+  <data name="ProcessExited" xml:space="preserve">
+    <value>le processus du plugin s&#x27;est arrêté</value>
+  </data>
+  <data name="SyncPumpTooDeep" xml:space="preserve">
+    <value>l&#x27;imbrication de livraison synchrone a dépassé {0} niveaux</value>
+  </data>
+  <data name="LineTooLong" xml:space="preserve">
+    <value>le plugin a écrit une ligne de plus de {0} caractères</value>
+  </data>
+  <data name="SyncReentryLimit" xml:space="preserve">
+    <value>les demandes réentrantes pendant la livraison synchrone ont dépassé {0}</value>
+  </data>
+  <data name="NotificationQueueOverflow" xml:space="preserve">
+    <value>la file de notifications du plugin a débordé</value>
+  </data>
+  <data name="SyncEventFailed" xml:space="preserve">
+    <value>la livraison synchrone de l&#x27;événement a échoué : {0}</value>
+  </data>
+</root>

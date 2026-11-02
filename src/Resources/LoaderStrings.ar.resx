@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="ReplyFailed" xml:space="preserve">
+    <value>{0}: فشل الرد على الإضافة</value>
+  </data>
+  <data name="UnloadIncomplete" xml:space="preserve">
+    <value>{0}: لم يكتمل طلب إلغاء التحميل</value>
+  </data>
+  <data name="StoppingProcess" xml:space="preserve">
+    <value>{0}: إيقاف عملية الإضافة</value>
+  </data>
+  <data name="StdoutNotJson" xml:space="preserve">
+    <value>{0}: سطر غير JSON على stdout</value>
+  </data>
+  <data name="StdoutRootNotObject" xml:space="preserve">
+    <value>{0}: جذر JSON على stdout ليس كائنًا</value>
+  </data>
+  <data name="StdoutReadFailed" xml:space="preserve">
+    <value>{0}: فشلت قراءة مخرجات العملية</value>
+  </data>
+  <data name="DispatchFailed" xml:space="preserve">
+    <value>{0}: فشلت معالجة {1}</value>
+  </data>
+  <data name="AsyncEventFailed" xml:space="preserve">
+    <value>{0}: فشل تسليم الحدث غير المتزامن</value>
+  </data>
+  <data name="StderrReadFailed" xml:space="preserve">
+    <value>{0}: فشلت قراءة stderr</value>
+  </data>
+  <data name="ReportFaultFailed" xml:space="preserve">
+    <value>{0}: فشل الإبلاغ عن العطل</value>
+  </data>
+  <data name="CommandMissing" xml:space="preserve">
+    <value>{0}: extraInfo.command مفقود أو ليس مصفوفة سلاسل غير فارغة</value>
+  </data>
+  <data name="ProcessStartFailed" xml:space="preserve">
+    <value>{0}: فشل بدء العملية ({1})</value>
+  </data>
+  <data name="ProcessStopTimeout" xml:space="preserve">
+    <value>{0}: لم ينتهِ إيقاف عملية الإضافة في الوقت المحدد</value>
+  </data>
+  <data name="ProcessExited" xml:space="preserve">
+    <value>خرجت عملية الإضافة</value>
+  </data>
+  <data name="SyncPumpTooDeep" xml:space="preserve">
+    <value>تجاوز تداخل التسليم المتزامن {0} مستويات</value>
+  </data>
+  <data name="LineTooLong" xml:space="preserve">
+    <value>كتبت الإضافة سطرًا واحدًا أطول من {0} حرفًا</value>
+  </data>
+  <data name="SyncReentryLimit" xml:space="preserve">
+    <value>تجاوزت الطلبات المعاد دخولها أثناء التسليم المتزامن {0}</value>
+  </data>
+  <data name="NotificationQueueOverflow" xml:space="preserve">
+    <value>فاض طابور إشعارات الإضافة</value>
+  </data>
+  <data name="SyncEventFailed" xml:space="preserve">
+    <value>فشل تسليم الحدث المتزامن: {0}</value>
+  </data>
+</root>
