@@ -36,5 +36,5 @@ the CLI replaces the child `PATH`.
 
 - Design decisions and terminology are kept by maintainers outside the public repositories; ask for
   the relevant decision when changing lifecycle or public API.
-- [Out-of-process guide](https://hf.srcz.one/develop/authoring-rpc/) and
+- [Out-of-process guide](https://hoshi.srcz.one/framework/develop/authoring-rpc/) and
   [RpcPluginTemplate](https://github.com/HosihikariFramework/RpcPluginTemplate).
