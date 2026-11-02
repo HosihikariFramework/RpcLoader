@@ -4,6 +4,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- 资源逻辑名按加载器的命名空间生成，和运行期装载的那份一致。 -->
+    <RootNamespace>Hosihikari.PluginLoader.Rpc</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
@@ -13,28 +15,11 @@
              Condition="!Exists('../../Plugin.Abstractions/src')" />
     <Compile Include="../src/RpcConnection.cs" Link="RpcConnection.cs" />
     <Compile Include="../src/LoaderText.cs" Link="LoaderText.cs" />
-    <EmbeddedResource Include="../src/Resources/LoaderStrings.resx" Link="Resources/LoaderStrings.resx">
-      <LogicalName>Hosihikari.PluginLoader.Rpc.Resources.LoaderStrings.resources</LogicalName>
-    </EmbeddedResource>
-    <EmbeddedResource Include="../src/Resources/LoaderStrings.ar.resx" Link="Resources/LoaderStrings.ar.resx">
-      <LogicalName>Hosihikari.PluginLoader.Rpc.Resources.LoaderStrings.resources</LogicalName>
-      <Culture>ar</Culture>
-    </EmbeddedResource>
-    <EmbeddedResource Include="../src/Resources/LoaderStrings.es.resx" Link="Resources/LoaderStrings.es.resx">
-      <LogicalName>Hosihikari.PluginLoader.Rpc.Resources.LoaderStrings.resources</LogicalName>
-      <Culture>es</Culture>
-    </EmbeddedResource>
-    <EmbeddedResource Include="../src/Resources/LoaderStrings.fr.resx" Link="Resources/LoaderStrings.fr.resx">
-      <LogicalName>Hosihikari.PluginLoader.Rpc.Resources.LoaderStrings.resources</LogicalName>
-      <Culture>fr</Culture>
-    </EmbeddedResource>
-    <EmbeddedResource Include="../src/Resources/LoaderStrings.ru.resx" Link="Resources/LoaderStrings.ru.resx">
-      <LogicalName>Hosihikari.PluginLoader.Rpc.Resources.LoaderStrings.resources</LogicalName>
-      <Culture>ru</Culture>
-    </EmbeddedResource>
-    <EmbeddedResource Include="../src/Resources/LoaderStrings.zh-Hans.resx" Link="Resources/LoaderStrings.zh-Hans.resx">
-      <LogicalName>Hosihikari.PluginLoader.Rpc.Resources.LoaderStrings.resources</LogicalName>
-      <Culture>zh-Hans</Culture>
-    </EmbeddedResource>
+    <EmbeddedResource Include="../src/Resources/LoaderStrings.resx" Link="Resources/LoaderStrings.resx" />
+    <EmbeddedResource Include="../src/Resources/LoaderStrings.ar.resx" Link="Resources/LoaderStrings.ar.resx" />
+    <EmbeddedResource Include="../src/Resources/LoaderStrings.es.resx" Link="Resources/LoaderStrings.es.resx" />
+    <EmbeddedResource Include="../src/Resources/LoaderStrings.fr.resx" Link="Resources/LoaderStrings.fr.resx" />
+    <EmbeddedResource Include="../src/Resources/LoaderStrings.ru.resx" Link="Resources/LoaderStrings.ru.resx" />
+    <EmbeddedResource Include="../src/Resources/LoaderStrings.zh-Hans.resx" Link="Resources/LoaderStrings.zh-Hans.resx" />
   </ItemGroup>
 </Project>
