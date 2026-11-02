@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="ReplyFailed" xml:space="preserve">
+    <value>{0}: не удалось ответить плагину</value>
+  </data>
+  <data name="UnloadIncomplete" xml:space="preserve">
+    <value>{0}: запрос на выгрузку не завершился</value>
+  </data>
+  <data name="StoppingProcess" xml:space="preserve">
+    <value>{0}: остановка процесса плагина</value>
+  </data>
+  <data name="StdoutNotJson" xml:space="preserve">
+    <value>{0}: не-JSON строка в stdout</value>
+  </data>
+  <data name="StdoutRootNotObject" xml:space="preserve">
+    <value>{0}: корень JSON в stdout не является объектом</value>
+  </data>
+  <data name="StdoutReadFailed" xml:space="preserve">
+    <value>{0}: не удалось прочитать вывод процесса</value>
+  </data>
+  <data name="DispatchFailed" xml:space="preserve">
+    <value>{0}: не удалось обработать {1}</value>
+  </data>
+  <data name="AsyncEventFailed" xml:space="preserve">
+    <value>{0}: не удалось асинхронно доставить событие</value>
+  </data>
+  <data name="StderrReadFailed" xml:space="preserve">
+    <value>{0}: не удалось прочитать stderr</value>
+  </data>
+  <data name="ReportFaultFailed" xml:space="preserve">
+    <value>{0}: не удалось сообщить о сбое</value>
+  </data>
+  <data name="CommandMissing" xml:space="preserve">
+    <value>{0}: extraInfo.command отсутствует или не является непустым массивом строк</value>
+  </data>
+  <data name="ProcessStartFailed" xml:space="preserve">
+    <value>{0}: не удалось запустить процесс ({1})</value>
+  </data>
+  <data name="ProcessStopTimeout" xml:space="preserve">
+    <value>{0}: остановка процесса плагина не завершилась вовремя</value>
+  </data>
+  <data name="ProcessExited" xml:space="preserve">
+    <value>процесс плагина завершился</value>
+  </data>
+  <data name="SyncPumpTooDeep" xml:space="preserve">
+    <value>вложенность синхронной доставки превысила {0} уровней</value>
+  </data>
+  <data name="LineTooLong" xml:space="preserve">
+    <value>плагин записал строку длиннее {0} символов</value>
+  </data>
+  <data name="SyncReentryLimit" xml:space="preserve">
+    <value>повторные запросы во время синхронной доставки превысили {0}</value>
+  </data>
+  <data name="NotificationQueueOverflow" xml:space="preserve">
+    <value>очередь уведомлений плагина переполнена</value>
+  </data>
+  <data name="SyncEventFailed" xml:space="preserve">
+    <value>не удалось синхронно доставить событие: {0}</value>
+  </data>
+</root>
