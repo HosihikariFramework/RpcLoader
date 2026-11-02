@@ -12,5 +12,29 @@
     <Compile Include="../../Abstractions/src/*.cs" Link="Abstractions/%(Filename)%(Extension)"
              Condition="!Exists('../../Plugin.Abstractions/src')" />
     <Compile Include="../src/RpcConnection.cs" Link="RpcConnection.cs" />
+    <Compile Include="../src/LoaderText.cs" Link="LoaderText.cs" />
+    <EmbeddedResource Include="../src/Resources/LoaderStrings.resx" Link="Resources/LoaderStrings.resx">
+      <LogicalName>Hosihikari.PluginLoader.Rpc.Resources.LoaderStrings.resources</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="../src/Resources/LoaderStrings.ar.resx" Link="Resources/LoaderStrings.ar.resx">
+      <LogicalName>Hosihikari.PluginLoader.Rpc.Resources.LoaderStrings.resources</LogicalName>
+      <Culture>ar</Culture>
+    </EmbeddedResource>
+    <EmbeddedResource Include="../src/Resources/LoaderStrings.es.resx" Link="Resources/LoaderStrings.es.resx">
+      <LogicalName>Hosihikari.PluginLoader.Rpc.Resources.LoaderStrings.resources</LogicalName>
+      <Culture>es</Culture>
+    </EmbeddedResource>
+    <EmbeddedResource Include="../src/Resources/LoaderStrings.fr.resx" Link="Resources/LoaderStrings.fr.resx">
+      <LogicalName>Hosihikari.PluginLoader.Rpc.Resources.LoaderStrings.resources</LogicalName>
+      <Culture>fr</Culture>
+    </EmbeddedResource>
+    <EmbeddedResource Include="../src/Resources/LoaderStrings.ru.resx" Link="Resources/LoaderStrings.ru.resx">
+      <LogicalName>Hosihikari.PluginLoader.Rpc.Resources.LoaderStrings.resources</LogicalName>
+      <Culture>ru</Culture>
+    </EmbeddedResource>
+    <EmbeddedResource Include="../src/Resources/LoaderStrings.zh-Hans.resx" Link="Resources/LoaderStrings.zh-Hans.resx">
+      <LogicalName>Hosihikari.PluginLoader.Rpc.Resources.LoaderStrings.resources</LogicalName>
+      <Culture>zh-Hans</Culture>
+    </EmbeddedResource>
   </ItemGroup>
 </Project>
