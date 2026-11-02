@@ -31,7 +31,7 @@ the CLI replaces the child `PATH`.
   wire order.
 - Child processes receive an argument list, never a shell string. Unload exits the child.
 - Operator-facing messages come from `src/Resources/LoaderStrings.resx` (neutral English) and
-  `LoaderStrings.zh-Hans.resx`; exception messages stay as written (ADR-0048).
+  `LoaderStrings.zh-Hans.resx`; exception messages are English (ADR-0050).
 - Public default branches are protected. Work on a branch, open a pull request, and squash merge.
 
 ## Context
