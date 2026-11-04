@@ -19,7 +19,7 @@ dotnet run --project test/Hosihikari.PluginLoader.Rpc.Regression.csproj -c Relea
 pwsh ./pack.ps1 -Version 1.0.0 -OutputRoot artifacts
 ```
 
-The host needs sibling `PluginManager`, `Plugin.Abstractions`, and McMaster checkouts, plus Node 24,
+The host needs sibling `PluginManager`, `Plugin.Abstractions`, and `DotNetCorePlugins` checkouts, plus Node 24,
 `qjs`, Python, JDK 21, and `kotlinc` on `PATH`. Under Endstone, use an absolute runtime path because
 the CLI replaces the child `PATH`.
 
