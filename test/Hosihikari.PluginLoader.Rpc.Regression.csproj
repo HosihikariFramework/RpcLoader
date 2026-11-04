@@ -20,6 +20,6 @@
     <EmbeddedResource Include="../src/Resources/LoaderStrings.es.resx" Link="Resources/LoaderStrings.es.resx" />
     <EmbeddedResource Include="../src/Resources/LoaderStrings.fr.resx" Link="Resources/LoaderStrings.fr.resx" />
     <EmbeddedResource Include="../src/Resources/LoaderStrings.ru.resx" Link="Resources/LoaderStrings.ru.resx" />
-    <EmbeddedResource Include="../src/Resources/LoaderStrings.zh-Hans.resx" Link="Resources/LoaderStrings.zh-Hans.resx" />
+    <EmbeddedResource Include="../src/Resources/LoaderStrings.zh.resx" Link="Resources/LoaderStrings.zh.resx" />
   </ItemGroup>
 </Project>
