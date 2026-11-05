@@ -142,11 +142,17 @@ public final class Context {
     }
 
     public ScheduledFuture<?> scheduleOnce(double seconds, Runnable work) {
-        return binding.schedule(work, (long) (seconds * 1000), 0);
+        return binding.schedule(work, millis(seconds), 0);
     }
 
     public ScheduledFuture<?> schedulePeriodic(double seconds, Runnable work) {
-        return binding.schedule(work, (long) (seconds * 1000), (long) (seconds * 1000));
+        var period = millis(seconds);
+        return binding.schedule(work, period, period);
+    }
+
+    /// 小于一毫秒的正数截断后是 0，周期会被当成一次性；正数至少给 1 毫秒。
+    private static long millis(double seconds) {
+        return seconds > 0 ? Math.max(1L, (long) (seconds * 1000)) : (long) (seconds * 1000);
     }
 
     private static String string(Object value) {
