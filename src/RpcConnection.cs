@@ -39,6 +39,18 @@ internal sealed class RpcConnection : IDisposable
     private const int MaxLineLength = 4 * 1024 * 1024;
     private const int SyncReentryLimit = 1024;
     private const int MaxSyncPumpDepth = 256;
+
+    /// <summary>协议版本。握手双方校验，不相等就在 hello 处失败（ADR-0031）。</summary>
+    internal const int ProtocolVersion = 1;
+
+    /// <summary>从宿主继承的环境变量（ADR-0031）：进程自己的必需项，PATH 另外按命令形态决定。</summary>
+    private static readonly string[] InheritedEnvironment =
+    [
+        "HOME", "USERPROFILE", "TMPDIR", "TEMP", "TMP",
+        "SystemRoot", "SystemDrive", "ComSpec", "WINDIR",
+        "LANG", "LC_ALL", "LC_CTYPE", "TZ",
+    ];
+
     private readonly Channel<Incoming> _incoming = Channel.CreateBounded<Incoming>(
         new BoundedChannelOptions(IncomingCapacity)
         {
@@ -175,7 +187,7 @@ internal sealed class RpcConnection : IDisposable
         }
 
         _dead = true;
-        FailPending(new InvalidOperationException("插件进程已退出"));
+        FailPending(new InvalidOperationException("The plugin process exited"));
         Fault(LoaderText.Get("ProcessExited"));
     }
 
@@ -192,6 +204,27 @@ internal sealed class RpcConnection : IDisposable
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8,
         };
+
+        // 环境变量白名单（ADR-0031）：只传进程必需项，其余不泄给插件。
+        start.Environment.Clear();
+        foreach (var name in InheritedEnvironment)
+        {
+            if (Environment.GetEnvironmentVariable(name) is { Length: > 0 } value)
+            {
+                start.Environment[name] = value;
+            }
+        }
+
+        // 不带路径的命令要靠 PATH 才找得到自己；带路径的就不传，把宿主里其它工具一起挡在外面。
+        if (!Path.IsPathRooted(command[0]) && Environment.GetEnvironmentVariable("PATH") is { Length: > 0 } path)
+        {
+            start.Environment["PATH"] = path;
+        }
+
+        start.Environment["HOSIHIKARI_PLUGIN_NAME"] = context.Name;
+        start.Environment["HOSIHIKARI_DATA_DIR"] = context.DataDirectory;
+        start.Environment["HOSIHIKARI_PACKAGE_DIR"] = context.PackageDirectory;
+
         for (var i = 1; i < command.Count; i++)
         {
             start.ArgumentList.Add(command[i]);
@@ -228,14 +261,29 @@ internal sealed class RpcConnection : IDisposable
             .Where(pair => pair.Value is not null)
             .ToDictionary(pair => pair.Key, pair => pair.Value!, StringComparer.Ordinal);
 
-        SendRequest("hosihikari/hello", new
+        var result = SendRequest("hosihikari/hello", new
         {
-            protocolVersion = 1,
+            protocolVersion = ProtocolVersion,
             name = context.Name,
             dataDirectory = context.DataDirectory,
             packageDirectory = context.PackageDirectory,
             config,
         }, LoadTimeout);
+
+        // 协议定义与加载器版本对不上时，后面每个调用都会莫名其妙地失败；在 hello 处就停下（ADR-0031）。
+        if (result.ValueKind != JsonValueKind.Object
+            || !result.TryGetProperty("protocolVersion", out var version)
+            || version.ValueKind != JsonValueKind.Number
+            || version.GetInt32() != ProtocolVersion)
+        {
+            var reported = result.ValueKind == JsonValueKind.Object
+                           && result.TryGetProperty("protocolVersion", out var raw)
+                           && raw.ValueKind == JsonValueKind.Number
+                ? raw.GetInt32().ToString(System.Globalization.CultureInfo.InvariantCulture)
+                : "none";
+            throw new InvalidOperationException(
+                $"Protocol version mismatch: the loader speaks {ProtocolVersion}, the protocol definition reported {reported}");
+        }
     }
 
     public PluginHookResult Hook(string method)
@@ -527,7 +575,7 @@ internal sealed class RpcConnection : IDisposable
         finally
         {
             _dead = true;
-            FailPending(new InvalidOperationException("插件进程的 stdout 已关闭"));
+            FailPending(new InvalidOperationException("The plugin process closed stdout"));
             if (!_disposing)
             {
                 Fault(LoaderText.Get("ProcessExited"));
@@ -614,7 +662,7 @@ internal sealed class RpcConnection : IDisposable
                           && error.TryGetProperty("message", out var messageElement)
                 ? messageElement.GetString()
                 : error.ToString();
-            completion.TrySetException(new InvalidOperationException(message ?? "插件返回错误"));
+            completion.TrySetException(new InvalidOperationException(message ?? "The plugin returned an error"));
         }
         else
         {

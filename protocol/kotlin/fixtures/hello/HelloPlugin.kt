@@ -29,8 +29,8 @@ class HelloPlugin : Plugin {
         // a slow JVM and drop the events while the plugin is still disabled.
         if (!timersStarted) {
             timersStarted = true
-            context.scheduleOnce(100) { context.publish("kotlin-self", "\"kotlin-publish\"") }
-            context.scheduleOnce(200) { context.publish("kotlin-syncself", "\"kotlin-sync\"") }
+            context.scheduleOnce(0.1) { context.publish("kotlin-self", "\"kotlin-publish\"") }
+            context.scheduleOnce(0.2) { context.publish("kotlin-syncself", "\"kotlin-sync\"") }
         }
         return HookResult.allow()
     }

@@ -17,8 +17,8 @@ import * as os from 'qjs:os';
  * @property {(file: string, text: string) => void} writeData
  * @property {(topic: string, json?: string | null) => Promise<*>} publish
  * @property {(topic: string, handler: (json: string | null) => void, options?: {sync?: boolean}) => () => void} subscribe
- * @property {(milliseconds: number, callback: () => void) => *} scheduleOnce
- * @property {(milliseconds: number, callback: () => void) => *} schedulePeriodic
+ * @property {(seconds: number, callback: () => void) => *} scheduleOnce
+ * @property {(seconds: number, callback: () => void) => *} schedulePeriodic
  */
 
 /**
@@ -54,6 +54,7 @@ const pending = new Map();
 const REQUEST_TIMEOUT_MS = 30000;
 const handlers = new Map();
 const syncTopics = new Set();
+const PROTOCOL_VERSION = 1;
 let plugin = null;
 let ctx = null;
 
@@ -122,8 +123,9 @@ function makeContext(params) {
         }
       };
     },
-    scheduleOnce: (ms, fn) => os.setTimeout(fn, ms),
-    schedulePeriodic: (ms, fn) => os.setInterval(fn, ms),
+    // 契约单位是秒；os.setTimeout 收毫秒（与 Python 绑定一致）。
+    scheduleOnce: (seconds, fn) => os.setTimeout(fn, seconds * 1000),
+    schedulePeriodic: (seconds, fn) => os.setInterval(fn, seconds * 1000),
     clearLater: (id) => os.clearTimeout(id),
     clearEvery: (id) => os.clearInterval(id),
   };
@@ -153,8 +155,11 @@ async function handle(message) {
   let result = null;
   switch (message.method) {
     case 'hosihikari/hello':
+      if ((message.params?.protocolVersion ?? 0) !== PROTOCOL_VERSION) {
+        throw new Error(`protocol version mismatch: binding ${PROTOCOL_VERSION}, host ${message.params?.protocolVersion}`);
+      }
       await load(message.params ?? {});
-      result = { name: ctx.name };
+      result = { name: ctx.name, protocolVersion: PROTOCOL_VERSION };
       break;
     case 'hosihikari/enable':
       result = normalize(await plugin?.onEnable?.(ctx));

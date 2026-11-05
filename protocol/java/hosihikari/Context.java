@@ -141,12 +141,12 @@ public final class Context {
         }
     }
 
-    public ScheduledFuture<?> scheduleOnce(long milliseconds, Runnable work) {
-        return binding.schedule(work, milliseconds, 0);
+    public ScheduledFuture<?> scheduleOnce(double seconds, Runnable work) {
+        return binding.schedule(work, (long) (seconds * 1000), 0);
     }
 
-    public ScheduledFuture<?> schedulePeriodic(long milliseconds, Runnable work) {
-        return binding.schedule(work, milliseconds, milliseconds);
+    public ScheduledFuture<?> schedulePeriodic(double seconds, Runnable work) {
+        return binding.schedule(work, (long) (seconds * 1000), (long) (seconds * 1000));
     }
 
     private static String string(Object value) {

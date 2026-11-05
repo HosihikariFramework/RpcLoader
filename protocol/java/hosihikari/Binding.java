@@ -17,6 +17,8 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 public final class Binding {
+
+    private static final int PROTOCOL_VERSION = 1;
     private final String pluginClassName;
     private final PrintStream protocol;
     private final Object writeLock = new Object();
@@ -96,8 +98,13 @@ public final class Binding {
     private Object dispatch(String method, Map<String, Object> params) throws Exception {
         return switch (method) {
             case "hosihikari/hello" -> {
+                var hostVersion = params.get("protocolVersion") instanceof Number number ? number.intValue() : 0;
+                if (hostVersion != PROTOCOL_VERSION) {
+                    throw new IllegalStateException(
+                        "protocol version mismatch: binding " + PROTOCOL_VERSION + ", host " + hostVersion);
+                }
                 load(params);
-                yield Map.of("name", context.name());
+                yield Map.of("name", context.name(), "protocolVersion", PROTOCOL_VERSION);
             }
             case "hosihikari/enable" -> hookResult(plugin == null ? null : plugin.onEnable(context));
             case "hosihikari/disable" -> hookResult(plugin == null ? null : plugin.onDisable(context));

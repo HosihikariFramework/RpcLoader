@@ -13,6 +13,8 @@ import sys
 import threading
 import traceback
 
+PROTOCOL_VERSION = 1
+
 try:
     sys.stdin.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
@@ -202,8 +204,12 @@ class _Binding:
 
     def dispatch(self, method, params):
         if method == "hosihikari/hello":
+            if params.get("protocolVersion") != PROTOCOL_VERSION:
+                raise RuntimeError(
+                    f"protocol version mismatch: binding {PROTOCOL_VERSION}, host {params.get('protocolVersion')}"
+                )
             self.load(params)
-            return {"name": self.context.name}
+            return {"name": self.context.name, "protocolVersion": PROTOCOL_VERSION}
         if method == "hosihikari/enable":
             hook = self.hook("on_enable")
             return _normalize(hook(self.context) if hook is not None else None)
