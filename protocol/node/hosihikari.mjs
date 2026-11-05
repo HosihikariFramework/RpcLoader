@@ -20,6 +20,7 @@ const notify = (method, params) => send({ jsonrpc: '2.0', method, params });
 let nextId = 1;
 const pending = new Map();
 const REQUEST_TIMEOUT_MS = 30000;
+const PROTOCOL_VERSION = 1;
 const handlers = new Map();
 const syncTopics = new Set();
 let plugin = null;
@@ -75,8 +76,9 @@ function makeContext(params) {
         }
       };
     },
-    scheduleOnce: (ms, fn) => setTimeout(fn, ms),
-    schedulePeriodic: (ms, fn) => setInterval(fn, ms),
+    // 契约单位是秒；setTimeout 收毫秒（与 Python 绑定一致）。
+    scheduleOnce: (seconds, fn) => setTimeout(fn, seconds * 1000),
+    schedulePeriodic: (seconds, fn) => setInterval(fn, seconds * 1000),
   };
 }
 
@@ -102,8 +104,11 @@ async function handle(message) {
   let result = null;
   switch (message.method) {
     case 'hosihikari/hello':
+      if ((message.params?.protocolVersion ?? 0) !== PROTOCOL_VERSION) {
+        throw new Error(`protocol version mismatch: binding ${PROTOCOL_VERSION}, host ${message.params?.protocolVersion}`);
+      }
       await load(message.params ?? {});
-      result = { name: ctx.name };
+      result = { name: ctx.name, protocolVersion: PROTOCOL_VERSION };
       break;
     case 'hosihikari/enable':
       result = normalize(await plugin?.onEnable?.(ctx));

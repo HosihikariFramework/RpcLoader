@@ -6,7 +6,7 @@ line-delimited JSON-RPC 2.0 over stdio.
 ## Repository map
 
 - `src/` — process supervision, protocol, and loader registration.
-- `host/` — full assertion host, including child processes for each binding.
+- `host/` — full assertion host, including child processes for each protocol definition.
 - `test/` — protocol regression tests and fixtures.
 - `protocol/` — the RPC protocol definitions for Node, Python, Java, Kotlin, and QuickJS.
 - `pack.ps1` — build the `hosihikari-rpc` release archive.
