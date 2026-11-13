@@ -437,7 +437,7 @@ void StageLoaderPackage()
           "type": "hosihikari",
           "version": "0.1.0",
           "dependencies": [ { "name": "hosihikari" } ],
-          "extraInfo": { "api_version": "2", "manifest_version": "1", "loader": "assembly" }
+          "extraInfo": { "api_version": "3", "manifest_version": "1", "loader": "assembly" }
         }
         """);
 
@@ -476,7 +476,7 @@ void StagePlugin(string name, string entry, bool parented = false)
             { "name": "hosihikari-rpc" }
           ],
           "extraInfo": {
-            "api_version": "2",
+            "api_version": "3",
             "manifest_version": "1",
             "loader": "rpc",
             "command": "[\"node\",\"./hosihikari.mjs\",\"./{{entry}}\"]"
@@ -509,7 +509,7 @@ void StageQuickPlugin(string name, string entry, bool parented = false)
             { "name": "hosihikari-rpc" }
           ],
           "extraInfo": {
-            "api_version": "2",
+            "api_version": "3",
             "manifest_version": "1",
             "loader": "rpc",
             "command": "[\"qjs\",\"./hosihikari.js\",\"./{{entry}}\"]"
@@ -545,7 +545,7 @@ void StagePythonPlugin(string name, string entry, bool parented = false)
         dependencies = new[] { new { name = "hosihikari" }, new { name = "hosihikari-rpc" } },
         extraInfo = new Dictionary<string, string>
         {
-            ["api_version"] = "2",
+            ["api_version"] = "3",
             ["manifest_version"] = "1",
             ["loader"] = "rpc",
             ["command"] = JsonSerializer.Serialize(command),
@@ -688,7 +688,7 @@ void WritePluginManifest(string package, string name, string entry, string[] com
         dependencies = new[] { new { name = "hosihikari" }, new { name = "hosihikari-rpc" } },
         extraInfo = new Dictionary<string, string>
         {
-            ["api_version"] = "2",
+            ["api_version"] = "3",
             ["manifest_version"] = "1",
             ["loader"] = "rpc",
             ["command"] = JsonSerializer.Serialize(command),

@@ -723,7 +723,7 @@ sealed class Context : IPluginContext
     public IServiceProvider CarrierServices => throw new NotSupportedException();
     public bool RegisterLoader(IPluginLoader loader) => throw new NotSupportedException();
     public ConcurrentQueue<string> Faults { get; } = new();
-    public void ReportFault(string reason) => Faults.Enqueue(reason);
+    public void ReportFault(PluginDiagnostic diagnostic) => Faults.Enqueue(diagnostic.Message);
 }
 sealed class Bus : IEventBus
 {
@@ -739,7 +739,7 @@ sealed class Bus : IEventBus
     public ManualResetEventSlim Entered { get; } = new(false);
     public ManualResetEventSlim Release { get; } = new(false);
     public int Active { get { lock (_gate) return _handlers.Count; } }
-    public IDisposable Subscribe<T>(Action<T> handler)
+    public IDisposable Subscribe<T>(Action<T> handler, EventPriority priority = EventPriority.Normal)
     {
         Thread.Sleep(2); // Make an overtaking unsubscribe observable on the old dispatcher.
         Action<ChannelMessage> channelHandler = message => handler((T)(object)message);

@@ -44,7 +44,7 @@ foreach ($name in @('Bar', 'HelloFs', 'HelloJs', 'hosihikari-fsharp', 'hosihikar
 }
 
 function Write-Manifest([string]$Path, [string]$Name, [string]$Entry, [string]$Loader, [object]$Command, [object]$Dependencies) {
-    $extra = [ordered]@{ api_version = '2'; manifest_version = '1'; loader = $Loader }
+    $extra = [ordered]@{ api_version = '3'; manifest_version = '1'; loader = $Loader }
     if ($null -ne $Command) { $extra.command = $Command }
     $manifest = [ordered]@{
         name         = $Name

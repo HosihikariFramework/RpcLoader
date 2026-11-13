@@ -11,6 +11,9 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <Compile Include="../../Plugin.Abstractions/src/*.cs" Link="Abstractions/%(Filename)%(Extension)"
              Condition="Exists('../../Plugin.Abstractions/src')" />
+    <!-- 清单模型已从契约程序集搬出（ADR-0059），链接编译时得把那个工程也带上。 -->
+    <Compile Include="../../Plugin.Abstractions/model/*.cs" Link="Abstractions/Model/%(Filename)%(Extension)"
+             Condition="Exists('../../Plugin.Abstractions/model')" />
     <Compile Include="../../Abstractions/src/*.cs" Link="Abstractions/%(Filename)%(Extension)"
              Condition="!Exists('../../Plugin.Abstractions/src')" />
     <Compile Include="../src/RpcConnection.cs" Link="RpcConnection.cs" />

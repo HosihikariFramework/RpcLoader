@@ -912,7 +912,7 @@ internal sealed class RpcConnection : IDisposable
 
         try
         {
-            _context.ReportFault(reason);
+            _context.ReportFault(PluginDiagnostic.Error("rpc", reason));
         }
         catch (Exception ex)
         {

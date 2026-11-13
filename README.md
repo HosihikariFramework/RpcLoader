@@ -36,7 +36,7 @@ plugins/Hello/
         { "name": "hosihikari-rpc" }
       ],
       "extraInfo": {
-        "api_version": "2",
+        "api_version": "3",
         "manifest_version": "1",
         "loader": "rpc",
         "command": "[\"node\", \"./hosihikari.mjs\", \"./main.mjs\"]"
