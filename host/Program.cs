@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
@@ -222,7 +222,7 @@ else
     checks.Add(("Python 绑定：同步订阅等到 ack",
         Read(pyData, "sync.txt") == "sync:\"sync-host\"", Read(pyData, "sync.txt")));
 
-    Thread.Sleep(800);
+    WaitFor(pyData, "syncself.txt");
     checks.Add(("Python 绑定：定时器与自发布",
         Read(pyData, "self.txt") == "self:\"py-publish\""
             && Read(pyData, "syncself.txt") == "syncself:\"py-sync\"",
@@ -254,7 +254,12 @@ else
         pyRefuseAfter.Error ?? "已回收"));
 
     var pyCrashLoaded = host.Load(Path.Combine(stage, "parented", "PyCrash"));
-    Thread.Sleep(400);
+    // 进程退出到故障卸载之间隔着一次监督轮询；固定等待偶尔赶不上。
+    var pyCrashDeadline = System.Diagnostics.Stopwatch.StartNew();
+    while (removed.All(name => name != "PyCrash") && pyCrashDeadline.Elapsed < TimeSpan.FromSeconds(5))
+    {
+        Thread.Sleep(50);
+    }
     checks.Add(("Python 绑定：进程死亡走故障卸载并通知",
         pyCrashLoaded && !host.LoadedNames.Contains("PyCrash")
             && removed.Any(name => name == "PyCrash"),
@@ -287,7 +292,7 @@ else
     checks.Add(("Java 绑定：同步订阅等到 ack",
         Read(javaData, "sync.txt") == "sync:\"sync-host\"", Read(javaData, "sync.txt")));
 
-    Thread.Sleep(800);
+    WaitFor(javaData, "syncself.txt");
     checks.Add(("Java 绑定：定时器与自发布",
         Read(javaData, "self.txt") == "self:\"java-publish\""
             && Read(javaData, "syncself.txt") == "syncself:\"java-sync\"",
@@ -329,7 +334,11 @@ else
         javaRefuseAfter.Error ?? "已回收"));
 
     var javaCrashLoaded = host.Load(Path.Combine(stage, "parented", "JavaCrash"));
-    Thread.Sleep(600);
+    for (var i = 0; i < 30 && host.LoadedNames.Contains("JavaCrash"); i++)
+    {
+        Thread.Sleep(100);
+    }
+
     checks.Add(("Java 绑定：进程死亡走故障卸载并通知",
         javaCrashLoaded && !host.LoadedNames.Contains("JavaCrash")
             && removed.Any(name => name == "JavaCrash"),
@@ -425,19 +434,36 @@ string Read(string directory, string file)
     return File.Exists(path) ? File.ReadAllText(path) : "（没写出来）";
 }
 
+// 等到文件出现且内容非空：JVM 的启动与定时器比固定 Sleep 慢得起落。
+string WaitFor(string directory, string file)
+{
+    var path = Path.Combine(directory, file);
+    for (var i = 0; i < 30; i++)
+    {
+        if (File.Exists(path) && Read(directory, file) != "（没写出来）")
+        {
+            break;
+        }
+
+        Thread.Sleep(100);
+    }
+
+    return Read(directory, file);
+}
+
 void StageLoaderPackage()
 {
     var package = Path.Combine(pluginsRoot, "hosihikari-rpc");
     Directory.CreateDirectory(package);
 
-    File.WriteAllText(Path.Combine(package, "manifest.json"), """
+    File.WriteAllText(Path.Combine(package, "hosihikari.json"), """
         {
           "name": "hosihikari-rpc",
           "entry": "Hosihikari.PluginLoader.Rpc.dll",
-          "type": "hosihikari",
+          "schemaVersion": 1, "kind": "plugin", "apiVersion": 3,
           "version": "0.1.0",
           "dependencies": [ { "name": "hosihikari" } ],
-          "extraInfo": { "api_version": "3", "manifest_version": "1", "loader": "assembly" }
+          "loader": "assembly"
         }
         """);
 
@@ -465,22 +491,18 @@ void StagePlugin(string name, string entry, bool parented = false)
     var package = Path.Combine(root, name);
     Directory.CreateDirectory(package);
 
-    File.WriteAllText(Path.Combine(package, "manifest.json"), $$"""
+    File.WriteAllText(Path.Combine(package, "hosihikari.json"), $$"""
         {
           "name": "{{name}}",
           "entry": "{{entry}}",
-          "type": "hosihikari",
+          "schemaVersion": 1, "kind": "plugin", "apiVersion": 3,
           "version": "1.0.0",
           "dependencies": [
             { "name": "hosihikari" },
             { "name": "hosihikari-rpc" }
           ],
-          "extraInfo": {
-            "api_version": "3",
-            "manifest_version": "1",
-            "loader": "rpc",
-            "command": "[\"node\",\"./hosihikari.mjs\",\"./{{entry}}\"]"
-          }
+          "loader": "rpc",
+          "pack": { "command": [ "node", "./hosihikari.mjs", "./{{entry}}" ] }
         }
         """);
 
@@ -498,22 +520,18 @@ void StageQuickPlugin(string name, string entry, bool parented = false)
     var package = Path.Combine(root, name);
     Directory.CreateDirectory(package);
 
-    File.WriteAllText(Path.Combine(package, "manifest.json"), $$"""
+    File.WriteAllText(Path.Combine(package, "hosihikari.json"), $$"""
         {
           "name": "{{name}}",
           "entry": "{{entry}}",
-          "type": "hosihikari",
+          "schemaVersion": 1, "kind": "plugin", "apiVersion": 3,
           "version": "1.0.0",
           "dependencies": [
             { "name": "hosihikari" },
             { "name": "hosihikari-rpc" }
           ],
-          "extraInfo": {
-            "api_version": "3",
-            "manifest_version": "1",
-            "loader": "rpc",
-            "command": "[\"qjs\",\"./hosihikari.js\",\"./{{entry}}\"]"
-          }
+          "loader": "rpc",
+          "pack": { "command": [ "qjs", "./hosihikari.js", "./{{entry}}" ] }
         }
         """);
 
@@ -538,20 +556,17 @@ void StagePythonPlugin(string name, string entry, bool parented = false)
     var command = python!.Concat(new[] { "./hosihikari.py", "./" + entry }).ToArray();
     var manifest = JsonSerializer.Serialize(new
     {
+        schemaVersion = 1,
         name,
         entry,
-        type = "hosihikari",
         version = "1.0.0",
+        loader = "rpc",
+        kind = "plugin",
+        apiVersion = 3,
         dependencies = new[] { new { name = "hosihikari" }, new { name = "hosihikari-rpc" } },
-        extraInfo = new Dictionary<string, string>
-        {
-            ["api_version"] = "3",
-            ["manifest_version"] = "1",
-            ["loader"] = "rpc",
-            ["command"] = JsonSerializer.Serialize(command),
-        },
+        pack = new { command },
     });
-    File.WriteAllText(Path.Combine(package, "manifest.json"), manifest);
+    File.WriteAllText(Path.Combine(package, "hosihikari.json"), manifest);
 
     File.Copy(
         Path.Combine(repoRoot, "protocol", "python", "hosihikari.py"),
@@ -681,20 +696,17 @@ void WritePluginManifest(string package, string name, string entry, string[] com
 {
     var manifest = JsonSerializer.Serialize(new
     {
+        schemaVersion = 1,
         name,
         entry,
-        type = "hosihikari",
         version = "1.0.0",
+        loader = "rpc",
+        kind = "plugin",
+        apiVersion = 3,
         dependencies = new[] { new { name = "hosihikari" }, new { name = "hosihikari-rpc" } },
-        extraInfo = new Dictionary<string, string>
-        {
-            ["api_version"] = "3",
-            ["manifest_version"] = "1",
-            ["loader"] = "rpc",
-            ["command"] = JsonSerializer.Serialize(command),
-        },
+        pack = new { command },
     });
-    File.WriteAllText(Path.Combine(package, "manifest.json"), manifest);
+    File.WriteAllText(Path.Combine(package, "hosihikari.json"), manifest);
 }
 
 static string? FindTool(string command, string argument)

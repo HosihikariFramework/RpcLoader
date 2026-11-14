@@ -49,14 +49,14 @@ internal sealed class RpcPlugin(RpcConnection connection) : IPlugin
     }
 
     public ValueTask<PluginHookResult> OnEnable(CancellationToken cancellationToken) =>
-        ValueTask.FromResult(connection.Hook("hosihikari/enable"));
+        ValueTask.FromResult(connection.Hook("hosihikari/enable", cancellationToken));
 
     public ValueTask<PluginHookResult> OnDisable(CancellationToken cancellationToken) =>
-        ValueTask.FromResult(connection.Hook("hosihikari/disable"));
+        ValueTask.FromResult(connection.Hook("hosihikari/disable", cancellationToken));
 
     public ValueTask OnUnload(CancellationToken cancellationToken)
     {
-        connection.Unload();
+        connection.Unload(cancellationToken);
         return ValueTask.CompletedTask;
     }
 }

@@ -1,4 +1,4 @@
-<#
+﻿<#
     Assemble the hosihikari-rpc loader release archive. Extracting it at the
     server root installs the loader into plugins/hosihikari-rpc/.
 
@@ -53,15 +53,17 @@ if (-not $packerFormat) {
 throw ($packerFormat -f $packTool)
 }
 
-$manifest = Join-Path ([System.IO.Path]::GetTempPath()) "hosihikari-$name-$Version-manifest.json"
+$manifest = Join-Path ([System.IO.Path]::GetTempPath()) "hosihikari-$name-$Version.json"
 try {
     [ordered]@{
-        name         = $name
-        entry        = $entry
-        type         = 'hosihikari'
-        version      = $Version
-        dependencies = @(@{ name = 'hosihikari' })
-        extraInfo    = [ordered]@{ api_version = '3'; manifest_version = '1'; loader = 'assembly' }
+        schemaVersion = 1
+        name          = $name
+        entry         = $entry
+        version       = $Version
+        loader        = 'assembly'
+        kind          = 'plugin'
+        apiVersion    = 3
+        dependencies  = @(@{ name = 'hosihikari' })
     } | ConvertTo-Json -Depth 6 | Set-Content $manifest -Encoding UTF8
 
     & dotnet run --project $packTool -c Release -- pack-loader $output $manifest $packageRoot

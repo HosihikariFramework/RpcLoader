@@ -378,7 +378,13 @@ static object? Invoke(RpcConnection connection, string method, params object[] a
     catch (TargetInvocationException ex) { throw ex.InnerException!; }
 }
 static JsonElement Request(RpcConnection connection, string payload, int milliseconds) =>
-    (JsonElement)Invoke(connection, "SendRequest", "test", new { payload }, TimeSpan.FromMilliseconds(milliseconds))!;
+    (JsonElement)Invoke(
+        connection,
+        "SendRequest",
+        "test",
+        new { payload },
+        TimeSpan.FromMilliseconds(milliseconds),
+        CancellationToken.None)!;
 static Process ProcessOf(RpcConnection connection) =>
     (Process)typeof(RpcConnection).GetField("_process", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(connection)!;
 static RpcConnection Start(string mode, Context context)
