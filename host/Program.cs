@@ -222,6 +222,7 @@ else
     checks.Add(("Python 绑定：同步订阅等到 ack",
         Read(pyData, "sync.txt") == "sync:\"sync-host\"", Read(pyData, "sync.txt")));
 
+    WaitFor(pyData, "self.txt");
     WaitFor(pyData, "syncself.txt");
     checks.Add(("Python 绑定：定时器与自发布",
         Read(pyData, "self.txt") == "self:\"py-publish\""
@@ -292,6 +293,7 @@ else
     checks.Add(("Java 绑定：同步订阅等到 ack",
         Read(javaData, "sync.txt") == "sync:\"sync-host\"", Read(javaData, "sync.txt")));
 
+    WaitFor(javaData, "self.txt");
     WaitFor(javaData, "syncself.txt");
     checks.Add(("Java 绑定：定时器与自发布",
         Read(javaData, "self.txt") == "self:\"java-publish\""
