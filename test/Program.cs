@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
@@ -56,8 +56,9 @@ Check("asynchronous notifications cannot block forever", () =>
     using var connection = Start("blocked", new Context());
     var watch = Stopwatch.StartNew();
     Invoke(connection, "Deliver", "test", new string('x', 4 * 1024 * 1024), false);
-    Assert(watch.Elapsed < TimeSpan.FromSeconds(8), "notification never finished");
-    Assert(ProcessOf(connection).WaitForExit(2000), "notification timeout left the child alive");
+    // 异步通知的写入走 SyncEventTimeout（15 秒，ADR-0031 的冷启动预算）。
+    Assert(watch.Elapsed < TimeSpan.FromSeconds(25), "notification never finished");
+    Assert(ProcessOf(connection).WaitForExit(5000), "notification timeout left the child alive");
 });
 
 Check("disposing an active writer terminates the write", () =>

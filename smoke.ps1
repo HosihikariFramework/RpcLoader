@@ -43,14 +43,14 @@ foreach ($name in @('Bar', 'HelloFs', 'HelloJs', 'hosihikari-fsharp', 'hosihikar
     }
 }
 
-function Write-Manifest([string]$Path, [string]$Name, [string]$Entry, [string]$Loader, [object]$Command, [object]$Dependencies) {
+function Write-Manifest([string]$Path, [string]$Name, [string]$Entry, [string]$Loader, [object]$Command, [object]$Dependencies, [string]$Kind = 'plugin') {
     $manifest = [ordered]@{
         schemaVersion = 1
         name          = $Name
         entry         = $Entry
         version       = '1.0.0'
         loader        = $Loader
-        kind          = 'plugin'
+        kind          = $Kind
         apiVersion    = 3
         dependencies  = $Dependencies
     }
@@ -67,7 +67,7 @@ New-Item -ItemType Directory -Path $rpcPackage | Out-Null
 $rpcOut = Join-Path $here 'src\bin\Release\net10.0'
 Copy-Item (Join-Path $rpcOut '*.dll') $rpcPackage
 Remove-Item (Join-Path $rpcPackage 'Hosihikari.Plugin.Abstractions.dll') -ErrorAction SilentlyContinue
-Write-Manifest (Join-Path $rpcPackage 'hosihikari.json') 'hosihikari-rpc' 'Hosihikari.PluginLoader.Rpc.dll' 'assembly' $null @(@{ name = 'hosihikari' })
+Write-Manifest (Join-Path $rpcPackage 'hosihikari.json') 'hosihikari-rpc' 'Hosihikari.PluginLoader.Rpc.dll' 'assembly' $null @(@{ name = 'hosihikari' }) 'loader'
 
 Write-Host '== stage the Node plugins =='
 function Stage-RpcPlugin([string]$Name, [string]$Entry) {

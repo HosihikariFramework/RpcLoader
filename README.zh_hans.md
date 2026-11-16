@@ -5,7 +5,7 @@
 > **进程外加载器。** RpcLoader 是官方加载器，也是源码编译为 IL 规则的唯一例外（ADR-0031）；插件无法编译为 IL 时才用它。
 
 星光框架的**进程外加载器**。插件以子进程运行，协议是行分隔的 JSON-RPC 2.0
-over stdio；它只认清单里的命令与协议。卸载就是让进程真正退出。
+over stdio；它只认 `hosihikari.json` 里的 `pack.command` 与协议。卸载就是让进程真正退出。
 
 **它自己也是一个插件包**：`hosihikari-rpc`。装载时在 `OnLoad` 里把自己登记给框架，此后
 `loader: "rpc"` 的包才会被它接管 —— 所以进程外插件要在清单里声明依赖它。
@@ -23,30 +23,28 @@ over stdio；它只认清单里的命令与协议。卸载就是让进程真正�
 
 ```
 plugins/Hello/
-  manifest.json
+  hosihikari.json
     {
+      "schemaVersion": 1,
       "name": "Hello",
-      "entry": "main.mjs",
-      "type": "hosihikari",
       "version": "1.0.0",
+      "entry": "main.mjs",
+      "loader": "rpc",
+      "kind": "plugin",
+      "apiVersion": 3,
       "dependencies": [
         { "name": "hosihikari" },
         { "name": "hosihikari-rpc" }
       ],
-      "extraInfo": {
-        "api_version": "3",
-        "manifest_version": "1",
-        "loader": "rpc",
-        "command": "[\"node\", \"./hosihikari.mjs\", \"./main.mjs\"]"
-      }
+      "pack": { "command": ["node", "./hosihikari.mjs", "./main.mjs"] }
     }
   hosihikari.mjs     ← 协议定义，从本仓 protocol/node 拷来
   main.mjs
   Hello.conf
 ```
 
-`extraInfo.command` 是**编码成字符串的 JSON 数组**——父级的清单解析要求 `extraInfo` 的值是字符串。
-加载器解码后把各项逐个放进参数表；不经 shell，工作目录是包目录。子进程的可执行文件由运维提供
+`pack.command` 是**非空 JSON 数组**——在 `hosihikari.json` 里是普通数组（ADR-0058），1.x 编码成字符串的写法仍收。
+加载器把各项逐个放进参数表；不经 shell，工作目录是包目录。子进程的可执行文件由运维提供
 （PATH 或绝对路径）。在 Endstone 下，CLI 会把子进程的 PATH 换成 Python 的 `sys.path`，可执行文件要写绝对路径。
 
 ## 插件怎么写
@@ -169,7 +167,7 @@ dotnet run --project test/Hosihikari.PluginLoader.Rpc.Regression.csproj -c Relea
 pwsh ./pack.ps1 -Version 1.0.0 -OutputRoot artifacts
 ```
 
-它把加载器 DLL、私有依赖、清单与 `protocol/` 装进 `plugins/hosihikari-rpc/`，共享层不随包走；打 `v*` 标签时 CI 把 zip 附到 release（ADR-0044）。
+它把加载器 DLL、私有依赖、`hosihikari.json` 与 `protocol/` 装进 `plugins/hosihikari-rpc/`，信封 `manifest.json` 由打包器生成（ADR-0058），共享层不随包走；打 `v*` 标签时 CI 把 zip 附到 release（ADR-0044）。
 
 打包脚本调用插件管理器打包器（`PluginManager/tools/Pack`），共享层清单由插件管理器统一给出；需要并列检出插件管理器仓，或设置 `HOSIHIKARI_PLUGINMANAGER`。
 

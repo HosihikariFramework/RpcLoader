@@ -458,7 +458,7 @@ void StageLoaderPackage()
         {
           "name": "hosihikari-rpc",
           "entry": "Hosihikari.PluginLoader.Rpc.dll",
-          "schemaVersion": 1, "kind": "plugin", "apiVersion": 3,
+          "schemaVersion": 1, "kind": "loader", "apiVersion": 3,
           "version": "0.1.0",
           "dependencies": [ { "name": "hosihikari" } ],
           "loader": "assembly"
