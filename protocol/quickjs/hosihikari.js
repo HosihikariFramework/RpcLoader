@@ -54,7 +54,8 @@ const pending = new Map();
 const REQUEST_TIMEOUT_MS = 30000;
 const handlers = new Map();
 const syncTopics = new Set();
-const PROTOCOL_VERSION = 1;
+// 2: hook refusals use the unified diagnostic shape (ADR-0059).
+const PROTOCOL_VERSION = 2;
 let plugin = null;
 let ctx = null;
 
@@ -131,12 +132,21 @@ function makeContext(params) {
   };
 }
 
+function diagnostic(value) {
+  const source = value && typeof value === 'object' ? value.diagnostic ?? value : {};
+  return {
+    code: typeof source.code === 'string' ? source.code : 'refused',
+    severity: typeof source.severity === 'string' ? source.severity : 'Error',
+    message: typeof source.message === 'string' ? source.message : '',
+  };
+}
+
 function normalize(value) {
   if (value === false) {
-    return { allowed: false };
+    return { allowed: false, diagnostic: diagnostic(null) };
   }
   if (value && typeof value === 'object' && typeof value.allowed === 'boolean') {
-    return { allowed: value.allowed, reason: value.reason ?? null };
+    return value.allowed ? { allowed: true } : { allowed: false, diagnostic: diagnostic(value) };
   }
   return { allowed: true };
 }

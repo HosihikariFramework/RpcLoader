@@ -222,8 +222,8 @@ else
     checks.Add(("Python 绑定：同步订阅等到 ack",
         Read(pyData, "sync.txt") == "sync:\"sync-host\"", Read(pyData, "sync.txt")));
 
-    WaitFor(pyData, "self.txt");
-    WaitFor(pyData, "syncself.txt");
+    WaitFor(pyData, "self.txt", "self:\"py-publish\"");
+    WaitFor(pyData, "syncself.txt", "syncself:\"py-sync\"");
     checks.Add(("Python 绑定：定时器与自发布",
         Read(pyData, "self.txt") == "self:\"py-publish\""
             && Read(pyData, "syncself.txt") == "syncself:\"py-sync\"",
@@ -293,8 +293,8 @@ else
     checks.Add(("Java 绑定：同步订阅等到 ack",
         Read(javaData, "sync.txt") == "sync:\"sync-host\"", Read(javaData, "sync.txt")));
 
-    WaitFor(javaData, "self.txt");
-    WaitFor(javaData, "syncself.txt");
+    WaitFor(javaData, "self.txt", "self:\"java-publish\"");
+    WaitFor(javaData, "syncself.txt", "syncself:\"java-sync\"");
     checks.Add(("Java 绑定：定时器与自发布",
         Read(javaData, "self.txt") == "self:\"java-publish\""
             && Read(javaData, "syncself.txt") == "syncself:\"java-sync\"",
@@ -436,17 +436,13 @@ string Read(string directory, string file)
     return File.Exists(path) ? File.ReadAllText(path) : "（没写出来）";
 }
 
-// 等到文件出现且内容非空：JVM 的启动与定时器比固定 Sleep 慢得起落。
-string WaitFor(string directory, string file)
+// 等到文件内容变成期望值：JVM 的启动与定时器比固定 Sleep 慢，写入又是截断 + 写，
+// 只看「文件在」会读到半截。
+string WaitFor(string directory, string file, string expected)
 {
     var path = Path.Combine(directory, file);
-    for (var i = 0; i < 30; i++)
+    for (var i = 0; i < 100 && Read(directory, file) != expected; i++)
     {
-        if (File.Exists(path) && Read(directory, file) != "（没写出来）")
-        {
-            break;
-        }
-
         Thread.Sleep(100);
     }
 

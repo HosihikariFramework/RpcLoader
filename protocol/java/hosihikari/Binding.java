@@ -18,7 +18,8 @@ import java.util.concurrent.TimeUnit;
 
 public final class Binding {
 
-    private static final int PROTOCOL_VERSION = 1;
+    // 2：钩子拒绝改成统一的 diagnostic 形状（ADR-0059）。
+    private static final int PROTOCOL_VERSION = 2;
     private final String pluginClassName;
     private final PrintStream protocol;
     private final Object writeLock = new Object();
@@ -138,8 +139,12 @@ public final class Binding {
         HookResult value = result == null ? HookResult.allow() : result;
         Map<String, Object> output = new LinkedHashMap<>();
         output.put("allowed", value.allowed);
-        if (value.reason != null) {
-            output.put("reason", value.reason);
+        if (!value.allowed) {
+            Map<String, Object> diagnostic = new LinkedHashMap<>();
+            diagnostic.put("code", value.code == null ? "refused" : value.code);
+            diagnostic.put("severity", value.severity == null ? "Error" : value.severity);
+            diagnostic.put("message", value.message == null ? "" : value.message);
+            output.put("diagnostic", diagnostic);
         }
         return output;
     }

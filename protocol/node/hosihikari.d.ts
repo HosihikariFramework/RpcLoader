@@ -20,7 +20,17 @@ interface RpcPluginContext {
   schedulePeriodic(seconds: number, callback: () => void): ReturnType<typeof setTimeout>;
 }
 
-type RpcHookResult = void | boolean | { allowed: boolean; reason?: string | null };
+/** 线上诊断（ADR-0059）：code 由插件定义，severity 是 Info / Warning / Error。 */
+interface RpcDiagnostic {
+  code?: string;
+  severity?: 'Info' | 'Warning' | 'Error';
+  message?: string;
+}
+
+type RpcHookResult =
+  | void
+  | boolean
+  | { allowed: boolean; reason?: string | null; diagnostic?: RpcDiagnostic };
 
 interface RpcPlugin {
   onLoad?(ctx: RpcPluginContext): void | Promise<void>;

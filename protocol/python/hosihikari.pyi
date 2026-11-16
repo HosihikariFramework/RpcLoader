@@ -1,6 +1,6 @@
 """Type stubs for hosihikari.py. Keep this file in step with the binding."""
 
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, TypedDict
 
 class Context:
     name: str
@@ -23,3 +23,15 @@ class Context:
     def schedule_periodic(self, seconds: float, callback: Callable[[], None]) -> Any: ...
 
 Hook = Callable[[Context], Any]
+
+class Diagnostic(TypedDict, total=False):
+    """钩子拒绝的诊断（ADR-0059）：code 由插件定义，severity 是 Info / Warning / Error。"""
+
+    code: str
+    severity: str
+    message: str
+
+
+class HookResult(TypedDict, total=False):
+    allowed: bool
+    diagnostic: Diagnostic
