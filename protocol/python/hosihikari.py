@@ -3,7 +3,7 @@
 
 行分隔 JSON-RPC 2.0 over stdio：stdout 只走协议，stderr 是日志。
 插件文件定义模块级的 on_load(ctx) / on_enable(ctx) / on_disable(ctx) / on_unload(ctx)。
-钩子返回 False 或 {"allowed": False, "reason": "..."} 表示拒绝；其余视为允许。
+钩子返回 False 或 {"allowed": False, "diagnostic": {"code", "severity", "message"}} 表示拒绝；其余视为允许。
 """
 
 import importlib.util
@@ -13,7 +13,8 @@ import sys
 import threading
 import traceback
 
-PROTOCOL_VERSION = 1
+# 2：钩子拒绝改成统一的 diagnostic 形状（ADR-0059）。
+PROTOCOL_VERSION = 2
 
 try:
     sys.stdin.reconfigure(encoding="utf-8")
@@ -40,11 +41,27 @@ def _notify(method, params):
     _send({"jsonrpc": "2.0", "method": method, "params": params})
 
 
+def _diagnostic(value):
+    source = value.get("diagnostic") if isinstance(value, dict) else None
+    source = source if isinstance(source, dict) else {}
+    # 1.x 的 {"allowed": False, "reason": ...} 仍是有文档的返回形状，原因不能丢。
+    reason = value.get("reason") if isinstance(value, dict) else None
+    return {
+        "code": source.get("code") if isinstance(source.get("code"), str) else "refused",
+        "severity": source.get("severity") if isinstance(source.get("severity"), str) else "Error",
+        "message": source.get("message") if isinstance(source.get("message"), str)
+        else reason if isinstance(reason, str) else "",
+    }
+
+
 def _normalize(value):
     if value is False:
-        return {"allowed": False}
+        return {"allowed": False, "diagnostic": _diagnostic(None)}
     if isinstance(value, dict) and isinstance(value.get("allowed"), bool):
-        return {"allowed": value["allowed"], "reason": value.get("reason")}
+        return {"allowed": True} if value["allowed"] else {
+            "allowed": False,
+            "diagnostic": _diagnostic(value),
+        }
     return {"allowed": True}
 
 

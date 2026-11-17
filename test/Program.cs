@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
@@ -56,8 +56,9 @@ Check("asynchronous notifications cannot block forever", () =>
     using var connection = Start("blocked", new Context());
     var watch = Stopwatch.StartNew();
     Invoke(connection, "Deliver", "test", new string('x', 4 * 1024 * 1024), false);
-    Assert(watch.Elapsed < TimeSpan.FromSeconds(8), "notification never finished");
-    Assert(ProcessOf(connection).WaitForExit(2000), "notification timeout left the child alive");
+    // 异步通知的写入走 SyncEventTimeout（15 秒，ADR-0031 的冷启动预算）。
+    Assert(watch.Elapsed < TimeSpan.FromSeconds(25), "notification never finished");
+    Assert(ProcessOf(connection).WaitForExit(5000), "notification timeout left the child alive");
 });
 
 Check("disposing an active writer terminates the write", () =>
@@ -378,7 +379,13 @@ static object? Invoke(RpcConnection connection, string method, params object[] a
     catch (TargetInvocationException ex) { throw ex.InnerException!; }
 }
 static JsonElement Request(RpcConnection connection, string payload, int milliseconds) =>
-    (JsonElement)Invoke(connection, "SendRequest", "test", new { payload }, TimeSpan.FromMilliseconds(milliseconds))!;
+    (JsonElement)Invoke(
+        connection,
+        "SendRequest",
+        "test",
+        new { payload },
+        TimeSpan.FromMilliseconds(milliseconds),
+        CancellationToken.None)!;
 static Process ProcessOf(RpcConnection connection) =>
     (Process)typeof(RpcConnection).GetField("_process", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(connection)!;
 static RpcConnection Start(string mode, Context context)
@@ -723,7 +730,7 @@ sealed class Context : IPluginContext
     public IServiceProvider CarrierServices => throw new NotSupportedException();
     public bool RegisterLoader(IPluginLoader loader) => throw new NotSupportedException();
     public ConcurrentQueue<string> Faults { get; } = new();
-    public void ReportFault(string reason) => Faults.Enqueue(reason);
+    public void ReportFault(PluginDiagnostic diagnostic) => Faults.Enqueue(diagnostic.Message);
 }
 sealed class Bus : IEventBus
 {
@@ -739,7 +746,7 @@ sealed class Bus : IEventBus
     public ManualResetEventSlim Entered { get; } = new(false);
     public ManualResetEventSlim Release { get; } = new(false);
     public int Active { get { lock (_gate) return _handlers.Count; } }
-    public IDisposable Subscribe<T>(Action<T> handler)
+    public IDisposable Subscribe<T>(Action<T> handler, EventPriority priority = EventPriority.Normal)
     {
         Thread.Sleep(2); // Make an overtaking unsubscribe observable on the old dispatcher.
         Action<ChannelMessage> channelHandler = message => handler((T)(object)message);

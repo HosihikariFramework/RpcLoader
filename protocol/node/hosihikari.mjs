@@ -20,7 +20,8 @@ const notify = (method, params) => send({ jsonrpc: '2.0', method, params });
 let nextId = 1;
 const pending = new Map();
 const REQUEST_TIMEOUT_MS = 30000;
-const PROTOCOL_VERSION = 1;
+// 2：钩子拒绝改成统一的 diagnostic 形状（ADR-0059）。
+const PROTOCOL_VERSION = 2;
 const handlers = new Map();
 const syncTopics = new Set();
 let plugin = null;
@@ -82,10 +83,25 @@ function makeContext(params) {
   };
 }
 
+function diagnostic(value) {
+  const source = value && typeof value === 'object' ? value.diagnostic ?? value : {};
+  // 1.x 的 `{ allowed: false, reason }` 仍是有文档的返回形状，原因不能丢。
+  const reason = value && typeof value === 'object' ? value.reason : undefined;
+  return {
+    code: typeof source.code === 'string' ? source.code : 'refused',
+    severity: typeof source.severity === 'string' ? source.severity : 'Error',
+    message: typeof source.message === 'string'
+      ? source.message
+      : typeof reason === 'string' ? reason : '',
+  };
+}
+
 function normalize(value) {
-  if (value === false) return { allowed: false };
+  if (value === false) return { allowed: false, diagnostic: diagnostic(null) };
   if (value && typeof value === 'object' && typeof value.allowed === 'boolean') {
-    return { allowed: value.allowed, reason: value.reason ?? null };
+    return value.allowed
+      ? { allowed: true }
+      : { allowed: false, diagnostic: diagnostic(value) };
   }
   return { allowed: true };
 }

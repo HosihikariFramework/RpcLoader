@@ -42,13 +42,24 @@ public sealed class RpcPluginLoader : IPluginLoader
 
 internal sealed class RpcPlugin(RpcConnection connection) : IPlugin
 {
-    public void OnLoad(IPluginContext context) => connection.Hello(context);
+    public ValueTask OnLoad(IPluginContext context, CancellationToken cancellationToken)
+    {
+        // 管理器取消装载时，握手也要能被打断（Codex 指出）。
+        connection.Hello(context, cancellationToken);
+        return ValueTask.CompletedTask;
+    }
 
-    public PluginHookResult OnEnable() => connection.Hook("hosihikari/enable");
+    public ValueTask<PluginHookResult> OnEnable(CancellationToken cancellationToken) =>
+        ValueTask.FromResult(connection.Hook("hosihikari/enable", cancellationToken));
 
-    public PluginHookResult OnDisable() => connection.Hook("hosihikari/disable");
+    public ValueTask<PluginHookResult> OnDisable(CancellationToken cancellationToken) =>
+        ValueTask.FromResult(connection.Hook("hosihikari/disable", cancellationToken));
 
-    public void OnUnload() => connection.Unload();
+    public ValueTask OnUnload(CancellationToken cancellationToken)
+    {
+        connection.Unload(cancellationToken);
+        return ValueTask.CompletedTask;
+    }
 }
 
 internal sealed class RpcPluginHandle(

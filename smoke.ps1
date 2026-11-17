@@ -1,4 +1,4 @@
-<#
+﻿<#
     Live smoke test for the out-of-process loader, on a LeviLamina server.
 
     Deploys the current shim + core, stages the loader package and two Node
@@ -43,16 +43,19 @@ foreach ($name in @('Bar', 'HelloFs', 'HelloJs', 'hosihikari-fsharp', 'hosihikar
     }
 }
 
-function Write-Manifest([string]$Path, [string]$Name, [string]$Entry, [string]$Loader, [object]$Command, [object]$Dependencies) {
-    $extra = [ordered]@{ api_version = '2'; manifest_version = '1'; loader = $Loader }
-    if ($null -ne $Command) { $extra.command = $Command }
+function Write-Manifest([string]$Path, [string]$Name, [string]$Entry, [string]$Loader, [object]$Command, [object]$Dependencies, [string]$Kind = 'plugin') {
     $manifest = [ordered]@{
-        name         = $Name
-        entry        = $Entry
-        type         = 'hosihikari'
-        version      = '1.0.0'
-        dependencies = $Dependencies
-        extraInfo    = $extra
+        schemaVersion = 1
+        name          = $Name
+        entry         = $Entry
+        version       = '1.0.0'
+        loader        = $Loader
+        kind          = $Kind
+        apiVersion    = 3
+        dependencies  = $Dependencies
+    }
+    if ($null -ne $Command) {
+        $manifest.pack = [ordered]@{ command = $Command | ConvertFrom-Json }
     }
     $manifest | ConvertTo-Json -Depth 8 | Set-Content -Path $Path -Encoding UTF8
 }
@@ -64,7 +67,7 @@ New-Item -ItemType Directory -Path $rpcPackage | Out-Null
 $rpcOut = Join-Path $here 'src\bin\Release\net10.0'
 Copy-Item (Join-Path $rpcOut '*.dll') $rpcPackage
 Remove-Item (Join-Path $rpcPackage 'Hosihikari.Plugin.Abstractions.dll') -ErrorAction SilentlyContinue
-Write-Manifest (Join-Path $rpcPackage 'manifest.json') 'hosihikari-rpc' 'Hosihikari.PluginLoader.Rpc.dll' 'assembly' $null @(@{ name = 'hosihikari' })
+Write-Manifest (Join-Path $rpcPackage 'hosihikari.json') 'hosihikari-rpc' 'Hosihikari.PluginLoader.Rpc.dll' 'assembly' $null @(@{ name = 'hosihikari' }) 'loader'
 
 Write-Host '== stage the Node plugins =='
 function Stage-RpcPlugin([string]$Name, [string]$Entry) {
@@ -74,7 +77,7 @@ function Stage-RpcPlugin([string]$Name, [string]$Entry) {
     Copy-Item (Join-Path $here 'protocol\node\hosihikari.mjs') $package
     Copy-Item (Join-Path $here "protocol\node\$Entry") $package
     $command = '["node","./hosihikari.mjs","./' + $Entry + '"]'
-    Write-Manifest (Join-Path $package 'manifest.json') $Name $Entry 'rpc' `
+    Write-Manifest (Join-Path $package 'hosihikari.json') $Name $Entry 'rpc' `
         $command `
         @(@{ name = 'hosihikari' }, @{ name = 'hosihikari-rpc' })
 }

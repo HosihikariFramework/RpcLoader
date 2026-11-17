@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -22,7 +22,9 @@ internal sealed class RpcConnection : IDisposable
     private static readonly TimeSpan LoadTimeout = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan HookTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan UnloadTimeout = TimeSpan.FromSeconds(10);
-    private static readonly TimeSpan SyncEventTimeout = TimeSpan.FromSeconds(5);
+    // 同步投递要等插件把 ack 发回来；JVM 与 CPython 的冷启动、GC 停顿都可能让这超过 5 秒，
+    // 而超时会被判成故障卸载。15 秒是照着钩子预算的一半取的。
+    private static readonly TimeSpan SyncEventTimeout = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(5);
 
     private readonly Process _process;
@@ -40,8 +42,11 @@ internal sealed class RpcConnection : IDisposable
     private const int SyncReentryLimit = 1024;
     private const int MaxSyncPumpDepth = 256;
 
-    /// <summary>协议版本。握手双方校验，不相等就在 hello 处失败（ADR-0031）。</summary>
-    internal const int ProtocolVersion = 1;
+    /// <summary>
+    /// 协议版本。握手双方校验，不相等就在 hello 处失败（ADR-0031）。
+    /// 2：钩子拒绝改成统一的 diagnostic 形状（ADR-0059）。
+    /// </summary>
+    internal const int ProtocolVersion = 2;
 
     /// <summary>从宿主继承的环境变量（ADR-0031）：进程自己的必需项，PATH 另外按命令形态决定。</summary>
     private static readonly string[] InheritedEnvironment =
@@ -188,7 +193,9 @@ internal sealed class RpcConnection : IDisposable
 
         _dead = true;
         FailPending(new InvalidOperationException("The plugin process exited"));
-        Fault(LoaderText.Get("ProcessExited"));
+        // 故障通知会同步跑完整条卸载（含 OnUnload 里的 Dispose），而 Process.Dispose 要等 Exited
+        // 处理器退出（实测）；在处理器里卸载就互等成环。通知必须离开处理器线程。
+        _ = Task.Run(() => Fault("process-exited", LoaderText.Get("ProcessExited")));
     }
 
     public static RpcConnection Start(IReadOnlyList<string> command, string packageDirectory, IPluginContext context)
@@ -255,7 +262,7 @@ internal sealed class RpcConnection : IDisposable
     }
 
     /// <summary>握手：把名字、目录与配置快照交给插件；返回时绑定的 onLoad 已经跑完。</summary>
-    public void Hello(IPluginContext context)
+    public void Hello(IPluginContext context, CancellationToken cancellationToken = default)
     {
         var config = context.Configuration.AsEnumerable()
             .Where(pair => pair.Value is not null)
@@ -268,7 +275,7 @@ internal sealed class RpcConnection : IDisposable
             dataDirectory = context.DataDirectory,
             packageDirectory = context.PackageDirectory,
             config,
-        }, LoadTimeout);
+        }, LoadTimeout, cancellationToken);
 
         // 协议定义与加载器版本对不上时，后面每个调用都会莫名其妙地失败；在 hello 处就停下（ADR-0031）。
         if (result.ValueKind != JsonValueKind.Object
@@ -286,9 +293,13 @@ internal sealed class RpcConnection : IDisposable
         }
     }
 
-    public PluginHookResult Hook(string method)
+    /// <summary>
+    /// 调一个插件钩子。管理器的钩子预算经 <paramref name="cancellationToken"/> 传进来，
+    /// 与本地 <see cref="HookTimeout"/> 合成一个 deadline：哪个先到都算这一次没等到（ADR-0059）。
+    /// </summary>
+    public PluginHookResult Hook(string method, CancellationToken cancellationToken = default)
     {
-        var result = SendRequest(method, new { }, HookTimeout);
+        var result = SendRequest(method, new { }, HookTimeout, cancellationToken);
         if (result.ValueKind != JsonValueKind.Object
             || !result.TryGetProperty("allowed", out var allowed)
             || allowed.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
@@ -296,19 +307,49 @@ internal sealed class RpcConnection : IDisposable
             throw new InvalidOperationException($"The result of {method} is missing the boolean allowed");
         }
 
-        var reason = result.TryGetProperty("reason", out var value) && value.ValueKind == JsonValueKind.String
-            ? value.GetString()
-            : null;
-        return allowed.GetBoolean() ? PluginHookResult.Allow() : PluginHookResult.Refuse(reason);
+        if (allowed.GetBoolean())
+        {
+            return PluginHookResult.Allow();
+        }
+
+        // 诊断统一走 { code, severity, message }（ADR-0059）；绑定可以不写，缺省按「无原因拒绝」。
+        return PluginHookResult.RefuseWith(ReadDiagnostic(result));
     }
 
-    public void Unload()
+    /// <summary>
+    /// 读一条线上诊断。跨语言绑定只传 code / severity / message 与异常的消息、类型名，不带堆栈（ADR-0059）。
+    /// </summary>
+    private static PluginDiagnostic ReadDiagnostic(JsonElement result)
+    {
+        var code = result.TryGetProperty("diagnostic", out var diagnostic)
+                   && diagnostic.ValueKind == JsonValueKind.Object
+                   && diagnostic.TryGetProperty("code", out var codeValue)
+                   && codeValue.ValueKind == JsonValueKind.String
+            ? codeValue.GetString()!
+            : PluginDiagnostic.RefusalCode;
+        var message = result.TryGetProperty("diagnostic", out var messageHolder)
+                      && messageHolder.ValueKind == JsonValueKind.Object
+                      && messageHolder.TryGetProperty("message", out var messageValue)
+                      && messageValue.ValueKind == JsonValueKind.String
+            ? messageValue.GetString() ?? ""
+            : "";
+        var severity = result.TryGetProperty("diagnostic", out var severityHolder)
+                       && severityHolder.ValueKind == JsonValueKind.Object
+                       && severityHolder.TryGetProperty("severity", out var severityValue)
+                       && severityValue.ValueKind == JsonValueKind.String
+                       && Enum.TryParse<PluginDiagnosticSeverity>(severityValue.GetString(), true, out var parsed)
+            ? parsed
+            : PluginDiagnosticSeverity.Error;
+        return new PluginDiagnostic(code, severity, message);
+    }
+
+    public void Unload(CancellationToken cancellationToken = default)
     {
         try
         {
             if (!_dead)
             {
-                SendRequest("hosihikari/unload", new { }, UnloadTimeout);
+                SendRequest("hosihikari/unload", new { }, UnloadTimeout, cancellationToken);
             }
         }
         catch (Exception ex)
@@ -319,12 +360,18 @@ internal sealed class RpcConnection : IDisposable
                 LoaderText.Get("UnloadIncomplete", _name));
         }
 
+        // 令牌只放弃等待协议回复；进程本身的收尾（关 stdin、杀进程树）照走。
         Dispose();
     }
 
-    private JsonElement SendRequest(string method, object parameters, TimeSpan timeout)
+    private JsonElement SendRequest(
+        string method,
+        object parameters,
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default)
     {
-        if (_dead)
+        // 进程退出与故障回调之间有赛跑窗口：HasExited 兜住它，别让钩子白等满本地超时。
+        if (_dead || HasExited)
         {
             throw new InvalidOperationException("The plugin process has exited");
         }
@@ -336,7 +383,12 @@ internal sealed class RpcConnection : IDisposable
             _pending[id] = completion;
         }
 
-        using var deadline = new CancellationTokenSource(timeout);
+        // 本地预算与调用方令牌合成一个 deadline：任一先到都停止等待并中止连接。
+        // 没有令牌时保持构造式计时器，热路径上少一层链接。
+        using var deadline = cancellationToken.CanBeCanceled
+            ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
+            : new CancellationTokenSource();
+        deadline.CancelAfter(timeout);
         using var abort = deadline.Token.Register(Abort);
         try
         {
@@ -371,7 +423,7 @@ internal sealed class RpcConnection : IDisposable
 
         if (_pumpDepth >= MaxSyncPumpDepth)
         {
-            Fault(LoaderText.Get("SyncPumpTooDeep", MaxSyncPumpDepth));
+            Fault("sync-pump-too-deep", LoaderText.Get("SyncPumpTooDeep", MaxSyncPumpDepth));
             Abort();
             throw new InvalidOperationException($"Synchronous delivery nesting exceeded {MaxSyncPumpDepth} levels");
         }
@@ -468,7 +520,7 @@ internal sealed class RpcConnection : IDisposable
                 var line = lines.ReadLine(out var overflow);
                 if (overflow)
                 {
-                    Fault(LoaderText.Get("LineTooLong", MaxLineLength));
+                    Fault("line-too-long", LoaderText.Get("LineTooLong", MaxLineLength));
                     Abort();
                     break;
                 }
@@ -547,7 +599,7 @@ internal sealed class RpcConnection : IDisposable
                         // 独立的有界重入队列；满了说明子进程在同步投递里灌请求。
                         if (!_reentries.Writer.TryWrite(new Incoming(method, parameters, requestId)))
                         {
-                            Fault(LoaderText.Get("SyncReentryLimit", SyncReentryLimit));
+                            Fault("sync-reentry-limit", LoaderText.Get("SyncReentryLimit", SyncReentryLimit));
                             Abort();
                             break;
                         }
@@ -555,7 +607,7 @@ internal sealed class RpcConnection : IDisposable
                     else if (!_incoming.Writer.TryWrite(new Incoming(method, parameters, requestId)))
                     {
                         // 队列满说明子进程在宿主处理不过来时还在灌通知；杀掉比无限占内存好。
-                        Fault(LoaderText.Get("NotificationQueueOverflow"));
+                        Fault("notification-queue-overflow", LoaderText.Get("NotificationQueueOverflow"));
                         Abort();
                         break;
                     }
@@ -578,7 +630,7 @@ internal sealed class RpcConnection : IDisposable
             FailPending(new InvalidOperationException("The plugin process closed stdout"));
             if (!_disposing)
             {
-                Fault(LoaderText.Get("ProcessExited"));
+                Fault("process-exited", LoaderText.Get("ProcessExited"));
             }
         }
     }
@@ -829,7 +881,7 @@ internal sealed class RpcConnection : IDisposable
         }
         catch (Exception ex)
         {
-            Fault(LoaderText.Get("SyncEventFailed", ex.Message));
+            Fault("sync-event-failed", LoaderText.Get("SyncEventFailed", ex.Message));
         }
         finally
         {
@@ -898,7 +950,7 @@ internal sealed class RpcConnection : IDisposable
         }
     }
 
-    private void Fault(string reason)
+    private void Fault(string code, string reason)
     {
         if (_disposing)
         {
@@ -912,7 +964,7 @@ internal sealed class RpcConnection : IDisposable
 
         try
         {
-            _context.ReportFault(reason);
+            _context.ReportFault(PluginDiagnostic.Error(code, reason));
         }
         catch (Exception ex)
         {

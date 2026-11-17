@@ -3,18 +3,15 @@ using System.Text.Json;
 namespace Hosihikari.PluginLoader.Rpc;
 
 /// <summary>
-/// 进程外插件的启动命令：清单 <c>extraInfo.command</c>。
+/// 进程外插件的启动命令：清单 <c>pack.command</c>（ADR-0058 / 0031）。
 ///
-/// 父级（LeviLamina）的清单解析要求 <c>extraInfo</c> 的值是字符串，所以这里约定：
-/// 值是**编码成字符串的 JSON 数组**，例如 <c>"[\"node\",\"./main.mjs\"]"</c>。
-/// 加载器解码后按参数表启动，不经 shell（ADR-0031）。
-/// 也接受真正的数组，便于不经过父级的验证宿主直接喂清单。
+/// 值是参数数组；1.x 把它编码成字符串，两种都收。加载器解码后按参数表启动，不经 shell。
 /// </summary>
 internal static class PluginCommand
 {
     public static IReadOnlyList<string>? Read(string packageDirectory)
     {
-        var manifestPath = Path.Combine(packageDirectory, "manifest.json");
+        var manifestPath = Path.Combine(packageDirectory, "hosihikari.json");
         if (!File.Exists(manifestPath))
         {
             return null;
@@ -23,9 +20,9 @@ internal static class PluginCommand
         try
         {
             using var document = JsonDocument.Parse(File.ReadAllText(manifestPath));
-            if (!document.RootElement.TryGetProperty("extraInfo", out var extraInfo)
-                || extraInfo.ValueKind != JsonValueKind.Object
-                || !extraInfo.TryGetProperty("command", out var command))
+            if (!document.RootElement.TryGetProperty("pack", out var pack)
+                || pack.ValueKind != JsonValueKind.Object
+                || !pack.TryGetProperty("command", out var command))
             {
                 return null;
             }

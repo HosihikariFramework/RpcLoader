@@ -5,8 +5,8 @@
 > **Out-of-process loader.** RpcLoader is an official loader and the one exception to the source-AOT-to-IL rule (ADR-0031). Use it when a plugin cannot be compiled to IL.
 
 The **out-of-process loader** of the Hosihikari framework. Plugins run as child processes
-and speak newline-delimited JSON-RPC 2.0 over stdio; the bridge reads only the command in the
-manifest and the protocol. Unload means the process really exits.
+and speak newline-delimited JSON-RPC 2.0 over stdio; the bridge reads only `pack.command` in
+`hosihikari.json` and the protocol. Unload means the process really exits.
 
 **It is a plugin package itself**, named `hosihikari-rpc`. When it loads, it registers itself with
 the framework from `OnLoad`; packages with `loader: "rpc"` are only handled after that — which is
@@ -25,30 +25,28 @@ packages for three runtimes:
 
 ```
 plugins/Hello/
-  manifest.json
+  hosihikari.json
     {
+      "schemaVersion": 1,
       "name": "Hello",
-      "entry": "main.mjs",
-      "type": "hosihikari",
       "version": "1.0.0",
+      "entry": "main.mjs",
+      "loader": "rpc",
+      "kind": "plugin",
+      "apiVersion": 3,
       "dependencies": [
         { "name": "hosihikari" },
         { "name": "hosihikari-rpc" }
       ],
-      "extraInfo": {
-        "api_version": "2",
-        "manifest_version": "1",
-        "loader": "rpc",
-        "command": "[\"node\", \"./hosihikari.mjs\", \"./main.mjs\"]"
-      }
+      "pack": { "command": ["node", "./hosihikari.mjs", "./main.mjs"] }
     }
   hosihikari.mjs     ← the protocol definition, copied from protocol/node in this repository
   main.mjs
   Hello.conf
 ```
 
-`extraInfo.command` is a non-empty JSON array encoded as a string — the parent's manifest parser
-requires `extraInfo` values to be strings. The loader decodes it and passes the items into the
+`pack.command` is a non-empty JSON array — a plain array in `hosihikari.json` (ADR-0058), and the
+1.x string-encoded form is still accepted. The loader passes the items into the
 argument list one by one; there is no shell, and the working directory is the package directory. The
 runtime executable is supplied by the operator (PATH or an absolute path). Under Endstone, the CLI
 sets the child's PATH to Python's `sys.path`, so name the runtime by absolute path there.
@@ -190,8 +188,9 @@ and reentrant synchronous event publication. CI runs it alongside the protocol d
 pwsh ./pack.ps1 -Version 1.0.0 -OutputRoot artifacts
 ```
 
-It assembles the loader DLL, its private dependencies, the manifest and `protocol/` into
-`plugins/hosihikari-rpc/`; the shared layer is not copied. Pushing a `v*` tag attaches the zip to
+It assembles the loader DLL, its private dependencies, `hosihikari.json` and `protocol/` into
+`plugins/hosihikari-rpc/`; the packer generates the LeviLamina `manifest.json` envelope from the
+manifest (ADR-0058), and the shared layer is not copied. Pushing a `v*` tag attaches the zip to
 the GitHub release (ADR-0044).
 
 The script invokes the core packager (`PluginManager/tools/Pack`), which owns the
