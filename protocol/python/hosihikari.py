@@ -44,10 +44,13 @@ def _notify(method, params):
 def _diagnostic(value):
     source = value.get("diagnostic") if isinstance(value, dict) else None
     source = source if isinstance(source, dict) else {}
+    # 1.x 的 {"allowed": False, "reason": ...} 仍是有文档的返回形状，原因不能丢。
+    reason = value.get("reason") if isinstance(value, dict) else None
     return {
         "code": source.get("code") if isinstance(source.get("code"), str) else "refused",
         "severity": source.get("severity") if isinstance(source.get("severity"), str) else "Error",
-        "message": source.get("message") if isinstance(source.get("message"), str) else "",
+        "message": source.get("message") if isinstance(source.get("message"), str)
+        else reason if isinstance(reason, str) else "",
     }
 
 

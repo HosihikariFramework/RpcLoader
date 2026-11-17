@@ -262,7 +262,7 @@ internal sealed class RpcConnection : IDisposable
     }
 
     /// <summary>握手：把名字、目录与配置快照交给插件；返回时绑定的 onLoad 已经跑完。</summary>
-    public void Hello(IPluginContext context)
+    public void Hello(IPluginContext context, CancellationToken cancellationToken = default)
     {
         var config = context.Configuration.AsEnumerable()
             .Where(pair => pair.Value is not null)
@@ -275,7 +275,7 @@ internal sealed class RpcConnection : IDisposable
             dataDirectory = context.DataDirectory,
             packageDirectory = context.PackageDirectory,
             config,
-        }, LoadTimeout);
+        }, LoadTimeout, cancellationToken);
 
         // 协议定义与加载器版本对不上时，后面每个调用都会莫名其妙地失败；在 hello 处就停下（ADR-0031）。
         if (result.ValueKind != JsonValueKind.Object

@@ -44,7 +44,8 @@ internal sealed class RpcPlugin(RpcConnection connection) : IPlugin
 {
     public ValueTask OnLoad(IPluginContext context, CancellationToken cancellationToken)
     {
-        connection.Hello(context);
+        // 管理器取消装载时，握手也要能被打断（Codex 指出）。
+        connection.Hello(context, cancellationToken);
         return ValueTask.CompletedTask;
     }
 
