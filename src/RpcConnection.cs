@@ -193,7 +193,9 @@ internal sealed class RpcConnection : IDisposable
 
         _dead = true;
         FailPending(new InvalidOperationException("The plugin process exited"));
-        Fault("process-exited", LoaderText.Get("ProcessExited"));
+        // 故障通知会同步跑完整条卸载（含 OnUnload 里的 Dispose），而 Process.Dispose 要等 Exited
+        // 处理器退出（实测）；在处理器里卸载就互等成环。通知必须离开处理器线程。
+        _ = Task.Run(() => Fault("process-exited", LoaderText.Get("ProcessExited")));
     }
 
     public static RpcConnection Start(IReadOnlyList<string> command, string packageDirectory, IPluginContext context)
