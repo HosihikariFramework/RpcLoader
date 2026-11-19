@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Hosihikari.PluginLoader.Rpc;
 
 /// <summary>
-/// 进程外插件的启动命令：清单 <c>pack.command</c>（ADR-0058 / 0031）。
+/// 进程外插件的启动命令：清单 <c>pack.command</c>（FX-0058 / 0031）。
 ///
 /// 值是参数数组；1.x 把它编码成字符串，两种都收。加载器解码后按参数表启动，不经 shell。
 /// </summary>

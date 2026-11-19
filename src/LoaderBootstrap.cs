@@ -5,14 +5,14 @@ using Hosihikari;
 namespace Hosihikari.PluginLoader.Rpc;
 
 /// <summary>
-/// 加载器本身就是一个插件包（ADR-0002）：装载时把自己登记给框架，此后
+/// 加载器本身就是一个插件包（FX-0002）：装载时把自己登记给框架，此后
 /// <c>loader: "rpc"</c> 的包才会被它接管。登记之后不能撤销。
 /// </summary>
 public sealed class LoaderBootstrap : IPlugin
 {
     public ValueTask OnLoad(IPluginContext context, CancellationToken cancellationToken)
     {
-        // 加载器包按清单的 kind 拿到 ILoaderContext（ADR-0059）；拿不到说明清单漏写了 kind。
+        // 加载器包按清单的 kind 拿到 ILoaderContext（FX-0059）；拿不到说明清单漏写了 kind。
         if (context is not ILoaderContext loaderContext)
         {
             throw new InvalidOperationException(

@@ -2,7 +2,7 @@
 
 [English](README.md) | [简体中文](README.zh_hans.md)
 
-> **Out-of-process loader.** RpcLoader is an official loader and the one exception to the source-AOT-to-IL rule (ADR-0031). Use it when a plugin cannot be compiled to IL.
+> **Out-of-process loader.** RpcLoader is an official loader and the one exception to the source-AOT-to-IL rule (FX-0031). Use it when a plugin cannot be compiled to IL.
 
 The **out-of-process loader** of the Hosihikari framework. Plugins run as child processes
 and speak newline-delimited JSON-RPC 2.0 over stdio; the bridge reads only `pack.command` in
@@ -45,7 +45,7 @@ plugins/Hello/
   Hello.conf
 ```
 
-`pack.command` is a non-empty JSON array — a plain array in `hosihikari.json` (ADR-0058), and the
+`pack.command` is a non-empty JSON array — a plain array in `hosihikari.json` (FX-0058), and the
 1.x string-encoded form is still accepted. The loader passes the items into the
 argument list one by one; there is no shell, and the working directory is the package directory. The
 runtime executable is supplied by the operator (PATH or an absolute path). Under Endstone, the CLI
@@ -190,8 +190,8 @@ pwsh ./pack.ps1 -Version 1.0.0 -OutputRoot artifacts
 
 It assembles the loader DLL, its private dependencies, `hosihikari.json` and `protocol/` into
 `plugins/hosihikari-rpc/`; the packer generates the LeviLamina `manifest.json` envelope from the
-manifest (ADR-0058), and the shared layer is not copied. Pushing a `v*` tag attaches the zip to
-the GitHub release (ADR-0044).
+manifest (FX-0058), and the shared layer is not copied. Pushing a `v*` tag attaches the zip to
+the GitHub release (FX-0044).
 
 The script invokes the core packager (`PluginManager/tools/Pack`), which owns the
 shared-layer list. Check out the core repository alongside this one, or set
