@@ -76,7 +76,7 @@ try {
 
 Copy-Item (Join-Path $here 'protocol') (Join-Path $package 'protocol') -Recurse
 
-# 包根的 sei.json 是分发元数据，安装时被跳过；加载器依赖核心的 3.x 兼容线。
+# 包根的 sei.json 是分发元数据，安装时被跳过；加载器依赖核心的 2.x 兼容线。
 $sei = Join-Path $root 'sei.json'
 [ordered]@{
     schemaVersion  = 3
