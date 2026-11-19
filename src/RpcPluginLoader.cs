@@ -4,8 +4,8 @@ using Microsoft.Extensions.Logging;
 namespace Hosihikari.PluginLoader.Rpc;
 
 /// <summary>
-/// 进程外插件的加载器（ADR-0031）。它不认识语言，只认命令与行分隔的 JSON-RPC 2.0。
-/// 一个插件一个进程；卸载就是让进程真正退出（ADR-0004 / 0030）。
+/// 进程外插件的加载器（FX-0031）。它不认识语言，只认命令与行分隔的 JSON-RPC 2.0。
+/// 一个插件一个进程；卸载就是让进程真正退出（FX-0004 / 0030）。
 /// </summary>
 public sealed class RpcPluginLoader : IPluginLoader
 {
@@ -87,7 +87,7 @@ internal sealed class RpcPluginHandle(
         }
         catch (Exception ex)
         {
-            // 进程没在限期内收尾：交给验证如实报失败，卸载停在已放下（ADR-0025）。
+            // 进程没在限期内收尾：交给验证如实报失败，卸载停在已放下（FX-0025）。
             context.Logger.LogWarning(
                 ex,
                 "{Message}",

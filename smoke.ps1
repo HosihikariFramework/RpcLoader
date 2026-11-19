@@ -85,7 +85,7 @@ Stage-RpcPlugin 'Hello' 'hello.mjs'
 Stage-RpcPlugin 'Crash' 'crash.mjs'
 Set-Content -Path (Join-Path $ServerRoot 'plugins\Hello\Hello.conf') -Value 'greeting = "package"' -Encoding ASCII
 
-# The operator's override lives outside the package (ADR-0018).
+# The operator's override lives outside the package (FX-0018).
 $configDir = Join-Path $ServerRoot 'config\hosihikari'
 New-Item -ItemType Directory -Force $configDir | Out-Null
 Set-Content -Path (Join-Path $configDir 'Hello.conf') -Value 'greeting = "overridden"' -Encoding ASCII

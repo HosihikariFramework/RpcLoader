@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.GetCultureInfo("zh-Hans");
 CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("zh-Hans");
 
-// 载体中立检查（ADR-0015）：普通 .NET 控制台驱动核心，不碰 BDS、Shim、任何载体。
+// 载体中立检查（FX-0015）：普通 .NET 控制台驱动核心，不碰 BDS、Shim、任何载体。
 var repoRoot = RepoRoot();
 var python = FindPython();
 var java = FindTool("java", "-version");
@@ -54,7 +54,7 @@ StagePlugin("Refuse", "refuse.mjs", parented: true);
 StagePlugin("Crash", "crash.mjs", parented: true);
 StageQuickPlugin("QuickCrash", "crash.js", parented: true);
 
-// 运营方的覆盖放包外（ADR-0018）。
+// 运营方的覆盖放包外（FX-0018）。
 File.WriteAllText(Path.Combine(configRoot, "Hello.conf"), "greeting = \"overridden\"\n");
 File.WriteAllText(Path.Combine(configRoot, "QuickHello.conf"), "greeting = \"quick-overridden\"\n");
 if (python is not null)
@@ -390,7 +390,7 @@ else
         kotlinUnloaded.Error ?? Read(kotlinData, "unloaded.txt")));
 }
 
-// 拒绝是结果值，不是异常（ADR-0030）。
+// 拒绝是结果值，不是异常（FX-0030）。
 var refuseLoaded = host.Load(Path.Combine(stage, "parented", "Refuse"));
 var refuseEnable = host.Enable("Refuse");
 var refuseStillLoaded = host.LoadedNames.Contains("Refuse");
@@ -406,7 +406,7 @@ checks.Add(("允许之后能真正卸掉",
     refuseUnloadAfter.Released && !host.LoadedNames.Contains("Refuse"),
     refuseUnloadAfter.Error ?? "已回收"));
 
-// 进程在钩子之外死亡：Loader 报告故障，宿主卸载并通知载体（ADR-0030）。
+// 进程在钩子之外死亡：Loader 报告故障，宿主卸载并通知载体（FX-0030）。
 var crashLoaded = host.Load(Path.Combine(stage, "parented", "Crash"));
 Thread.Sleep(400);
 checks.Add(("进程死亡走故障卸载并通知",

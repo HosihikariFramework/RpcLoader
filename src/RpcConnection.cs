@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 namespace Hosihikari.PluginLoader.Rpc;
 
 /// <summary>
-/// 一个进程外插件的 JSON-RPC 连接与进程监督（ADR-0031）。
+/// 一个进程外插件的 JSON-RPC 连接与进程监督（FX-0031）。
 ///
 /// 传输是行分隔的 JSON-RPC 2.0：stdout 只走协议，stderr 是日志文本。
 /// 宿主→插件发请求（hello / enable / disable / unload / events/deliver），
@@ -43,12 +43,12 @@ internal sealed class RpcConnection : IDisposable
     private const int MaxSyncPumpDepth = 256;
 
     /// <summary>
-    /// 协议版本。握手双方校验，不相等就在 hello 处失败（ADR-0031）。
-    /// 2：钩子拒绝改成统一的 diagnostic 形状（ADR-0059）。
+    /// 协议版本。握手双方校验，不相等就在 hello 处失败（FX-0031）。
+    /// 2：钩子拒绝改成统一的 diagnostic 形状（FX-0059）。
     /// </summary>
     internal const int ProtocolVersion = 2;
 
-    /// <summary>从宿主继承的环境变量（ADR-0031）：进程自己的必需项，PATH 另外按命令形态决定。</summary>
+    /// <summary>从宿主继承的环境变量（FX-0031）：进程自己的必需项，PATH 另外按命令形态决定。</summary>
     private static readonly string[] InheritedEnvironment =
     [
         "HOME", "USERPROFILE", "TMPDIR", "TEMP", "TMP",
@@ -212,7 +212,7 @@ internal sealed class RpcConnection : IDisposable
             StandardErrorEncoding = Encoding.UTF8,
         };
 
-        // 环境变量白名单（ADR-0031）：只传进程必需项，其余不泄给插件。
+        // 环境变量白名单（FX-0031）：只传进程必需项，其余不泄给插件。
         start.Environment.Clear();
         foreach (var name in InheritedEnvironment)
         {
@@ -277,7 +277,7 @@ internal sealed class RpcConnection : IDisposable
             config,
         }, LoadTimeout, cancellationToken);
 
-        // 协议定义与加载器版本对不上时，后面每个调用都会莫名其妙地失败；在 hello 处就停下（ADR-0031）。
+        // 协议定义与加载器版本对不上时，后面每个调用都会莫名其妙地失败；在 hello 处就停下（FX-0031）。
         if (result.ValueKind != JsonValueKind.Object
             || !result.TryGetProperty("protocolVersion", out var version)
             || version.ValueKind != JsonValueKind.Number
@@ -295,7 +295,7 @@ internal sealed class RpcConnection : IDisposable
 
     /// <summary>
     /// 调一个插件钩子。管理器的钩子预算经 <paramref name="cancellationToken"/> 传进来，
-    /// 与本地 <see cref="HookTimeout"/> 合成一个 deadline：哪个先到都算这一次没等到（ADR-0059）。
+    /// 与本地 <see cref="HookTimeout"/> 合成一个 deadline：哪个先到都算这一次没等到（FX-0059）。
     /// </summary>
     public PluginHookResult Hook(string method, CancellationToken cancellationToken = default)
     {
@@ -312,12 +312,12 @@ internal sealed class RpcConnection : IDisposable
             return PluginHookResult.Allow();
         }
 
-        // 诊断统一走 { code, severity, message }（ADR-0059）；绑定可以不写，缺省按「无原因拒绝」。
+        // 诊断统一走 { code, severity, message }（FX-0059）；绑定可以不写，缺省按「无原因拒绝」。
         return PluginHookResult.RefuseWith(ReadDiagnostic(result));
     }
 
     /// <summary>
-    /// 读一条线上诊断。跨语言绑定只传 code / severity / message 与异常的消息、类型名，不带堆栈（ADR-0059）。
+    /// 读一条线上诊断。跨语言绑定只传 code / severity / message 与异常的消息、类型名，不带堆栈（FX-0059）。
     /// </summary>
     private static PluginDiagnostic ReadDiagnostic(JsonElement result)
     {
