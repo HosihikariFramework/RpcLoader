@@ -1,4 +1,4 @@
-﻿name: verify
+name: verify
 
 on:
   push:
@@ -6,6 +6,41 @@ on:
   pull_request:
 
 jobs:
+  format:
+    name: 格式
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # 仓里的配置文件与 FormatterConfig 逐字节相同，是标准；漂了就停下并打印 diff。
+      - name: 空白
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(git ls-files)
+          fail=0
+          for f in "${files[@]}"; do
+            [ -s "$f" ] || continue
+            if [ -n "$(tail -c 1 "$f")" ]; then
+              echo "$f: 文件末尾缺换行"; fail=1
+            fi
+            if sed 's/\r$//' "$f" | grep -qE '[[:space:]]+$'; then
+              echo "$f: 有行尾空白"; fail=1
+            fi
+          done
+          exit "$fail"
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+
+      # .editorconfig 里的 csharp_* 规则只有 dotnet format 会执行。只放 whitespace：
+      # style 那套会连 file_header_template 一起要求。
+      - name: C# 空白
+        run: |
+          set -euo pipefail
+          sln=$(git ls-files -- '*.slnx' '*.sln' | head -n 1)
+          if [ -z "$sln" ]; then echo "没有解决方案文件"; exit 0; fi
+          dotnet format whitespace "$sln" --verify-no-changes
   assertions:
     runs-on: ubuntu-latest
     steps:
@@ -44,18 +79,18 @@ jobs:
 
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: "10.0.x"
 
       # 断言里有真正的子进程，运行时由 setup-node 提供。
       - uses: actions/setup-node@v7
         with:
-          node-version: '24.x'
+          node-version: "24.x"
 
       # Java 与 Kotlin 协议定义需要一个 JDK；Kotlin 编译器随后单独下载。
       - uses: actions/setup-java@v6
         with:
           distribution: graalvm-community
-          java-version: '25'
+          java-version: "25"
 
       - name: Kotlin
         run: |
@@ -74,8 +109,8 @@ jobs:
       - name: 跑断言
         working-directory: provider
         env:
-          HOSIHIKARI_REQUIRE_JAVA: '1'
-          HOSIHIKARI_REQUIRE_KOTLIN: '1'
+          HOSIHIKARI_REQUIRE_JAVA: "1"
+          HOSIHIKARI_REQUIRE_KOTLIN: "1"
         run: dotnet run --project host/Hosihikari.PluginLoader.Rpc.Host.csproj -c Release --nologo
 
       - name: 进程监督与协议顺序回归
@@ -118,11 +153,11 @@ jobs:
 
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: "10.0.x"
 
       - uses: actions/setup-node@v7
         with:
-          node-version: '24.x'
+          node-version: "24.x"
 
       - name: QuickJS
         shell: pwsh
@@ -136,7 +171,7 @@ jobs:
       - name: 跑断言
         working-directory: provider
         env:
-          JAVA_TOOL_OPTIONS: '-Dfile.encoding=UTF-8'
+          JAVA_TOOL_OPTIONS: "-Dfile.encoding=UTF-8"
         run: dotnet run --project host/Hosihikari.PluginLoader.Rpc.Host.csproj -c Release --nologo
 
       - name: 进程监督与协议顺序回归
